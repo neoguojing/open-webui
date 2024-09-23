@@ -1,0 +1,11 @@
+# web search
+
+## 网络搜索和检索流程
+- /api/task/query/completions =》generate_search_query ： 产生合理的搜索体诗词
+- - search_query_generation_template
+- - generate_chat_completions
+- - - generate_ollama_chat_completion
+- store_web_search : 依据上面的提示词进行web搜索，解析web内容，并存储进向量集合，返回向量集合的名称
+- - search_web
+- - store_data_in_vector_db
+- ollama/api/chat : 进行最终回答

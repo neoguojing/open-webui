@@ -1,0 +1,7 @@
+# RAG
+
+## query_doc_handler
+- query_doc_with_hybrid_search
+- - BM25Retriever + ChromaRetriever + RerankCompressor =》 ContextualCompressionRetriever
+- query_doc
+- - collection.query
