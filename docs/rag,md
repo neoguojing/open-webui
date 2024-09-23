@@ -5,3 +5,11 @@
 - - BM25Retriever + ChromaRetriever + RerankCompressor =》 ContextualCompressionRetriever
 - query_doc
 - - collection.query
+## /youtube /doc /process/doc /text /web /web/search
+- YoutubeLoader get_web_loader search_web
+- store_data_in_vector_db
+- - RecursiveCharacterTextSplitter
+- - store_docs_in_vector_db
+- - - create_collection
+- - - create_batches
+- - - collection.add
