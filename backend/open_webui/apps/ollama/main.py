@@ -707,6 +707,7 @@ class GenerateChatCompletionForm(BaseModel):
     template: Optional[str] = None
     stream: Optional[bool] = None
     keep_alive: Optional[Union[int, str]] = None
+    metadata: Optional[dict] = None
 
 
 def get_ollama_url(url_idx: Optional[int], model: str):
