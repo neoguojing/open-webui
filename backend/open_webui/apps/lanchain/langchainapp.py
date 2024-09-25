@@ -68,10 +68,6 @@ class LangchainApp:
 
     def __init__(self,model="qwen2.5:latest",db_path="sqlite:///memory.db",
                  retrievers=None,base_url="http://localhost:11434/v1/"):
-        self.embedding =OllamaEmbeddings(
-            model="bge-m3",
-            base_url="http://192.168.1.7:11434",
-        )
 
         self.db_path = db_path
         self.llm =ChatOpenAI(
@@ -144,14 +140,6 @@ class LangchainApp:
             content = item.content
             # 使用 yield 生成提取的 content
             yield content
-
-    def embed_query(self,input: str):
-        single_vector =  self.embedding.embed_query(input)
-        return  single_vector
-
-    def embed_documents(self,inputs):
-        vectors =  self.embedding.embed_documents(inputs)
-        return  vectors
 
 # if __name__ == "__main__":
 #     app = LangchainApp()
