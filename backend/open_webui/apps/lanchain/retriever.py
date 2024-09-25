@@ -19,7 +19,8 @@ from langchain_community.document_loaders import (
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.docstore.in_memory import InMemoryDocstore
-from langchain.retrievers import EnsembleRetriever
+from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
 from langchain_ollama import OllamaEmbeddings
 import faiss
 import os
@@ -51,16 +52,66 @@ class KnowledgeManager:
             database=CHROMA_DATABASE,
         )
     
-
-    def query_doc(self,
+    def query_doc_with_hybrid_search(
+        self,
         collection_name: str,
         query: str,
         embedding_function,
         k: int,
+        reranking_function,
+        r: float,
     ):
         try:
             collection = self.client.get_collection(name=collection_name)
-            query_embeddings = embedding_function(query)
+            documents = collection.get()  # get all documents
+
+            bm25_retriever = BM25Retriever.from_texts(
+                texts=documents.get("documents"),
+                metadatas=documents.get("metadatas"),
+            )
+            bm25_retriever.k = k
+
+            chroma_retriever = ChromaRetriever(
+                collection=collection,
+                embedding_function=embedding_function,
+                top_n=k,
+            )
+
+            ensemble_retriever = EnsembleRetriever(
+                retrievers=[bm25_retriever, chroma_retriever], weights=[0.5, 0.5]
+            )
+
+            compressor = RerankCompressor(
+                embedding_function=embedding_function,
+                top_n=k,
+                reranking_function=reranking_function,
+                r_score=r,
+            )
+
+            compression_retriever = ContextualCompressionRetriever(
+                base_compressor=compressor, base_retriever=ensemble_retriever
+            )
+
+            result = compression_retriever.invoke(query)
+            result = {
+                "distances": [[d.metadata.get("score") for d in result]],
+                "documents": [[d.page_content for d in result]],
+                "metadatas": [[d.metadata for d in result]],
+            }
+
+            log.info(f"query_doc_with_hybrid_search:result {result}")
+            return result
+        except Exception as e:
+            raise e
+    
+    def query_doc(self,
+        collection_name: str,
+        query: str,
+        k: int,
+    ):
+        try:
+            collection = self.client.get_collection(name=collection_name)
+            query_embeddings = self.embed_query(query)
 
             result = collection.query(
                 query_embeddings=[query_embeddings],
@@ -111,6 +162,60 @@ class KnowledgeManager:
         elif isinstance(url, Sequence):
             return all(validate_url(u) for u in url)
         else:
+            return False
+        
+    def store_docs_in_vector_db(
+            self,docs, collection_name, metadata: Optional[dict] = None, overwrite: bool = False
+    ) -> bool:
+        log.info(f"store_docs_in_vector_db {docs} {collection_name}")
+
+        texts = [doc.page_content for doc in docs]
+        metadatas = [{**doc.metadata, **(metadata if metadata else {})} for doc in docs]
+
+        # ChromaDB does not like datetime formats
+        # for meta-data so convert them to string.
+        for metadata in metadatas:
+            for key, value in metadata.items():
+                if isinstance(value, datetime):
+                    metadata[key] = str(value)
+
+        try:
+            if overwrite:
+                for collection in CHROMA_CLIENT.list_collections():
+                    if collection_name == collection.name:
+                        log.info(f"deleting existing collection {collection_name}")
+                        CHROMA_CLIENT.delete_collection(name=collection_name)
+
+            collection = CHROMA_CLIENT.create_collection(name=collection_name)
+
+            embedding_func = get_embedding_function(
+                app.state.config.RAG_EMBEDDING_ENGINE,
+                app.state.config.RAG_EMBEDDING_MODEL,
+                app.state.sentence_transformer_ef,
+                app.state.config.OPENAI_API_KEY,
+                app.state.config.OPENAI_API_BASE_URL,
+                app.state.config.RAG_EMBEDDING_OPENAI_BATCH_SIZE,
+            )
+
+            embedding_texts = list(map(lambda x: x.replace("\n", " "), texts))
+            embeddings = embedding_func(embedding_texts)
+
+            for batch in create_batches(
+                api=CHROMA_CLIENT,
+                ids=[str(uuid.uuid4()) for _ in texts],
+                metadatas=metadatas,
+                embeddings=embeddings,
+                documents=texts,
+            ):
+                collection.add(*batch)
+
+            return True
+        except Exception as e:
+            if e.__class__.__name__ == "UniqueConstraintError":
+                return True
+
+            log.exception(e)
+
             return False
     
     def get_web_loader(self,url: Union[str, Sequence[str]], verify_ssl: bool = True):
@@ -284,6 +389,88 @@ class KnowledgeManager:
 
 knowledgeBase = KnowledgeManager()
 
+
+class RerankCompressor(BaseDocumentCompressor):
+    embedding_function: Any
+    top_n: int
+    reranking_function: Any
+    r_score: float
+
+    class Config:
+        extra = Extra.forbid
+        arbitrary_types_allowed = True
+
+    def compress_documents(
+        self,
+        documents: Sequence[Document],
+        query: str,
+        callbacks: Optional[Callbacks] = None,
+    ) -> Sequence[Document]:
+        reranking = self.reranking_function is not None
+
+        if reranking:
+            scores = self.reranking_function.predict(
+                [(query, doc.page_content) for doc in documents]
+            )
+        else:
+            from sentence_transformers import util
+
+            query_embedding = self.embedding_function(query)
+            document_embedding = self.embedding_function(
+                [doc.page_content for doc in documents]
+            )
+            scores = util.cos_sim(query_embedding, document_embedding)[0]
+
+        docs_with_scores = list(zip(documents, scores.tolist()))
+        if self.r_score:
+            docs_with_scores = [
+                (d, s) for d, s in docs_with_scores if s >= self.r_score
+            ]
+
+        result = sorted(docs_with_scores, key=operator.itemgetter(1), reverse=True)
+        final_results = []
+        for doc, doc_score in result[: self.top_n]:
+            metadata = doc.metadata
+            metadata["score"] = doc_score
+            doc = Document(
+                page_content=doc.page_content,
+                metadata=metadata,
+            )
+            final_results.append(doc)
+        return final_results
+
+
+class ChromaRetriever(BaseRetriever):
+    collection: Any
+    embedding_function: Any
+    top_n: int
+
+    def _get_relevant_documents(
+        self,
+        query: str,
+        *,
+        run_manager: CallbackManagerForRetrieverRun,
+    ) -> list[Document]:
+        query_embeddings = self.embedding_function(query)
+
+        results = self.collection.query(
+            query_embeddings=[query_embeddings],
+            n_results=self.top_n,
+        )
+
+        ids = results["ids"][0]
+        metadatas = results["metadatas"][0]
+        documents = results["documents"][0]
+
+        results = []
+        for idx in range(len(ids)):
+            results.append(
+                Document(
+                    metadata=metadatas[idx],
+                    page_content=documents[idx],
+                )
+            )
+        return results
 
 class TikaLoader:
     def __init__(self, file_path, mime_type=None):
