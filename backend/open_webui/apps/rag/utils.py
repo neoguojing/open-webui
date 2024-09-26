@@ -391,12 +391,6 @@ def generate_openai_batch_embeddings(
         return None
 
 
-from typing import Any
-
-from langchain_core.callbacks import CallbackManagerForRetrieverRun
-from langchain_core.retrievers import BaseRetriever
-
-
 class ChromaRetriever(BaseRetriever):
     collection: Any
     embedding_function: Any

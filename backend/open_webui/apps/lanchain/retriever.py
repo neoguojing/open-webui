@@ -19,9 +19,11 @@ from langchain_community.document_loaders import (
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.docstore.in_memory import InMemoryDocstore
+from langchain_core.retrievers import BaseRetriever
 from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_ollama import OllamaEmbeddings
+from langchain_openai import ChatOpenAI
 import faiss
 import os
 import glob
@@ -32,6 +34,8 @@ import validators
 import socket
 import chromadb
 from chromadb import Settings
+from langchain.retrievers.document_compressors import DocumentCompressorPipeline,EmbeddingsFilter,LLMListwiseRerank,LLMChainFilter
+from langchain_community.document_transformers import EmbeddingsRedundantFilter
 
 import logging
 log = logging.getLogger(__name__)
@@ -42,7 +46,13 @@ class KnowledgeManager:
     def __init__(self, base_path="./knowledge_bases", embedding_dim=512, batch_size=16):
         self.embedding =OllamaEmbeddings(
             model="bge-m3",
-            base_url="http://192.168.1.7:11434",
+            base_url="http://localhost:11434",
+        )
+
+        self.llm =ChatOpenAI(
+            model="llama3.1-local",
+            openai_api_key="121212",
+            base_url="http://localhost:11434/v1",
         )
 
         self.client = chromadb.PersistentClient(
@@ -51,12 +61,47 @@ class KnowledgeManager:
             tenant=CHROMA_TENANT,
             database=CHROMA_DATABASE,
         )
+
+        
+    def get_compress_retriever(self,retriever,filter_type):
+        llm_filter = LLMChainFilter.from_llm(self.llm)
+        llm_filter1 = LLMListwiseRerank.from_llm(self.llm, top_n=1)
+        relevant_filter = EmbeddingsFilter(embeddings=self.embedding, similarity_threshold=0.76)
+
+        redundant_filter = EmbeddingsRedundantFilter(embeddings=self.embedding)
+        
+        pipeline_compressor = DocumentCompressorPipeline(
+            transformers=[redundant_filter, relevant_filter]
+        )
+
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=pipeline_compressor, base_retriever=retriever
+        )
+
+        return compression_retriever
+    
+    def get_retriever(self,k: int):
+        bm25_retriever = BM25Retriever.from_texts(
+                texts=documents.get("documents"),
+                metadatas=documents.get("metadatas"),
+            )
+        bm25_retriever.k = k
+
+        chroma_retriever = ChromaRetriever(
+            collection=collection,
+            embedding_function=self.embedding,
+            top_n=k,
+        )
+        
+        ensemble_retriever = EnsembleRetriever(
+            retrievers=[bm25_retriever, chroma_retriever], weights=[0.5, 0.5]
+        )
+        return ensemble_retriever
     
     def query_doc_with_hybrid_search(
         self,
         collection_name: str,
         query: str,
-        embedding_function,
         k: int,
         reranking_function,
         r: float,
@@ -73,7 +118,7 @@ class KnowledgeManager:
 
             chroma_retriever = ChromaRetriever(
                 collection=collection,
-                embedding_function=embedding_function,
+                embedding_function=self.embedding,
                 top_n=k,
             )
 
@@ -82,7 +127,7 @@ class KnowledgeManager:
             )
 
             compressor = RerankCompressor(
-                embedding_function=embedding_function,
+                embedding_function=self.embedding,
                 top_n=k,
                 reranking_function=reranking_function,
                 r_score=r,
@@ -122,14 +167,6 @@ class KnowledgeManager:
             return result
         except Exception as e:
             raise e
-    
-    def embed_query(self,input: str):
-        single_vector =  self.embedding.embed_query(input)
-        return  single_vector
-
-    def embed_documents(self,inputs):
-        vectors =  self.embedding.embed_documents(inputs)
-        return  vectors
     
     def resolve_hostname(self,hostname):
         # Get address information
