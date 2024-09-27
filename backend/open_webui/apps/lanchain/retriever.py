@@ -19,8 +19,9 @@ from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
-from langchain_ollama import OllamaEmbeddings
-from langchain_openai import ChatOpenAI
+# from langchain_ollama import OllamaEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_openai import ChatOpenAI,OpenAIEmbeddings
 from typing import Any,List,Dict,Iterator, Optional, Sequence, Union
 import requests
 import validators
@@ -50,10 +51,11 @@ class KnowledgeManager:
         self.embedding =OllamaEmbeddings(
             model="bge-m3:latest",
             base_url="http://localhost:11434",
+            num_gpu=100
         )
 
         self.llm =ChatOpenAI(
-            model="qwen2.5",
+            model="qwen2.5:14b",
             openai_api_key="121212",
             base_url="http://localhost:11434/v1",
         )
@@ -93,9 +95,14 @@ class KnowledgeManager:
                     raise ValueError("File name is required for file storage.")
                 loader,known_type = self.get_loader(file_name,source,content_type)
             
+            print("start load file---------")
             raw_docs = loader.load()
+            print("loader file count:",len(raw_docs))
             docs = self.split_documents(raw_docs)
-            self.collection_manager.get_vector_store(collection_name).add_documents(docs)
+            print("splited documents count:",len(docs))
+            store = self.collection_manager.get_vector_store(collection_name)
+            store.add_documents(docs)
+            print("add documents done------")
             return True
         except Exception as e:
             if e.__class__.__name__ == "UniqueConstraintError":
@@ -325,7 +332,7 @@ class KnowledgeManager:
 
         return loader, known_type
 
-    def split_documents(self, documents,chunk_size=512,chunk_overlap=512):
+    def split_documents(self, documents,chunk_size=512,chunk_overlap=30):
         text_splitter = RecursiveCharacterTextSplitter(separators=[
                                                     "\n\n",
                                                     "\n",
@@ -372,7 +379,11 @@ class SafeWebBaseLoader(WebBaseLoader):
 
 if __name__ == '__main__':
     knowledgeBase = KnowledgeManager(data_path="./test/")
-    knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.pdf",
-                        source_type=SourceType.FILE,file_name='ir2023_ashare.pdf')
+    knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.txt",
+                        source_type=SourceType.FILE,file_name='ir2023_ashare.txt')
     docs = knowledgeBase.query_doc("test","董事长报告书",k=2)
     print(docs)
+    # emb = knowledgeBase.embedding.embed_query("wsewqeqe")
+    # print(emb)
+    # resp = knowledgeBase.llm.invoke("hhhhh")
+    # print(resp)

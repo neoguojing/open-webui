@@ -1,7 +1,7 @@
 import chromadb
 from chromadb.config import Settings
 from langchain_core.documents import Document
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 
 class CollectionManager:
@@ -34,19 +34,14 @@ class CollectionManager:
     
     def get_vector_store(self, collection_name) -> Chroma:
         """Get or create a vector store for the given collection name."""
-        try:
-            collection = self.client.get_or_create_collection(name=collection_name)
-        except Exception as e:
-            raise ValueError(f"Collection '{collection_name}' {e}")
-        
         return Chroma(client=self.client, 
                       embedding_function=self.embedding, 
-                      collection_name=collection.name)
+                      collection_name=collection_name)
 
     def get_documents(self, collection_name) -> list[Document]:
         """Retrieve all documents and their metadata from the collection."""
         collection = self.get_or_create_collection(collection_name)
         result = collection.get()
         
-        return [Document(page_content=document['text'], metadata=metadata) 
+        return [Document(page_content=document, metadata=metadata) 
                 for document, metadata in zip(result['documents'], result['metadatas'])]
