@@ -2,18 +2,26 @@
 import chromadb
 from chromadb.config import Settings
 import uuid
-
-vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings())
-
-
+from chromadb.utils.batch_utils import create_batches
+from langchain_core.documents import Document
+from datetime import datetime
+from typing import Iterator, Optional, Sequence, Union
+from langchain_community.vectorstores import Chroma
+from langchain_ollama import OllamaEmbeddings
 
 class CollectionManager:
-    def __init__(self, data_path, tenant, database, allow_reset=True, anonymized_telemetry=False):
+    def __init__(self, data_path, tenant=chromadb.DEFAULT_TENANT, 
+                 database=chromadb.DEFAULT_DATABASE, allow_reset=True, anonymized_telemetry=False):
         self.client = chromadb.PersistentClient(
             path=data_path,
             settings=Settings(allow_reset=allow_reset, anonymized_telemetry=anonymized_telemetry),
             tenant=tenant,
             database=database,
+        )
+
+        self.embedding =OllamaEmbeddings(
+            model="bge-m3",
+            base_url="http://localhost:11434",
         )
 
     def get_collection(self, collection_name):
@@ -24,69 +32,36 @@ class CollectionManager:
         """Delete the collection by name."""
         self.client.delete_collection(name=collection_name)
 
-    def switch_database(self, new_database):
+    def create_collection(self, collection_name):
         """Switch to a different database."""
-        self.client.database = new_database
+        self.client.create_collection(name=collection_name)
 
-class DocumentManager:
-    def __init__(self, collection):
-        self.collection = collection
-
-    def get_documents(self):
+    def list_collections(self,limit: Optional[int] = None,offset: Optional[int] = None):
+        return self.client.list_collections(limit,offset)
+    
+    def get_collection(self, collection_name):
+        """Switch to a different database."""
+        self.client.create_collection(name=collection_name)
+    
+    def get_or_create_vector_store(self,collection_name) -> Chroma:
+        return Chroma(collection_name,client=self.client,embedding_function=self.embedding)
+    
+    def get_documents(self,collection_name) -> list[Document]:
         """Retrieve all documents and their metadata from the collection."""
-        documents = self.collection.get()
-        return documents.get("documents"), documents.get("metadatas")
+        collection = self.client.create_collection(name=collection_name)
+        documents = collection.get()
+        docs = []
+        for doc, metadata in zip(documents.get("documents"), documents.get("metadatas")):
+            # 组装新的 Document 对象
+            d = Document(
+                page_content=doc.page_content,  # 从文档中提取 page_content
+                metadata=metadata,  # 使用对应的元数据
+            )
+            docs.append(d)
+        return docs
+    
+    
 
-    def create_batches(self, ids, metadatas, embeddings, documents, batch_size=100):
-        """Generator function to create batches of data."""
-        for i in range(0, len(ids), batch_size):
-            yield {
-                "ids": ids[i:i+batch_size],
-                "metadatas": metadatas[i:i+batch_size],
-                "embeddings": embeddings[i:i+batch_size],
-                "documents": documents[i:i+batch_size],
-            }
 
-    def add_documents(self, texts, metadatas, embeddings, batch_size=100):
-        """Add documents to the collection."""
-        # Create new document ids
-        ids = [str(uuid.uuid4()) for _ in texts]
-        
-        # Add documents in batches
-        for batch in self.create_batches(
-            ids=ids,
-            metadatas=metadatas,
-            embeddings=embeddings,
-            documents=texts,
-            batch_size=batch_size
-        ):
-            self.collection.add(**batch)
 
-# Example usage:
 
-CHROMA_DATA_PATH = "/path/to/chroma"
-CHROMA_TENANT = "tenant_name"
-CHROMA_DATABASE = "db1"
-
-# Initialize the collection manager
-collection_manager = CollectionManager(
-    data_path=CHROMA_DATA_PATH,
-    tenant=CHROMA_TENANT,
-    database=CHROMA_DATABASE
-)
-
-# Get a collection
-collection = collection_manager.get_collection(collection_name="my_collection")
-
-# Initialize the document manager
-document_manager = DocumentManager(collection=collection)
-
-# Add documents
-texts = ["doc1", "doc2", "doc3"]
-metadatas = [{"type": "text"}, {"type": "text"}, {"type": "text"}]
-embeddings = [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]
-
-document_manager.add_documents(texts=texts, metadatas=metadatas, embeddings=embeddings)
-
-# Switch to another database
-collection_manager.switch_database("db2")

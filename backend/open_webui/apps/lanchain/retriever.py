@@ -36,14 +36,20 @@ import chromadb
 from chromadb import Settings
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline,EmbeddingsFilter,LLMListwiseRerank,LLMChainFilter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
-
+from .vectore_store import CollectionManager
 import logging
 log = logging.getLogger(__name__)
 log.setLevel("retriever")
 
+from enum import Enum
+
+class SourceType(Enum):
+    YOUTUBE = "youtube"
+    WEB = "web"
+    FILE = "file"
 
 class KnowledgeManager:
-    def __init__(self, base_path="./knowledge_bases", embedding_dim=512, batch_size=16):
+    def __init__(self, data_path, tenant, database):
         self.embedding =OllamaEmbeddings(
             model="bge-m3",
             base_url="http://localhost:11434",
@@ -55,17 +61,58 @@ class KnowledgeManager:
             base_url="http://localhost:11434/v1",
         )
 
-        self.client = chromadb.PersistentClient(
-            path=CHROMA_DATA_PATH,
-            settings=Settings(allow_reset=True, anonymized_telemetry=False),
-            tenant=CHROMA_TENANT,
-            database=CHROMA_DATABASE,
-        )
+        self.collection_manager = CollectionManager(data_path,tenant,database)
 
+    def store(self,collection_name: str, source: Union[str, List[str]], source_type: SourceType,
+               file_info: Optional[Dict[str, str]] = None):
+        """
+        存储 URL 或文件，支持单个或多个 source。
         
+        参数:
+        - collection_name: 存储的集合名称
+        - source: 如果是 URL，传入字符串或列表；如果是文件，传入文件路径或文件路径列表
+        - source_type: 数据源类型，支持 SourceType.YOUTUBE, SourceType.WEB, SourceType.FILE
+        - file_info: 一个包含文件相关信息的字典，只有当 source_type 是 SourceType.FILE 时使用。
+                    字典中可以包含:
+                    - "file_name": 文件名
+                    - "content_type": 文件的内容类型
+        """
+         # 处理单个或多个 source
+        if isinstance(source, str):
+            sources = [source]  # 如果是字符串，转为列表
+        elif isinstance(source, list):
+            sources = source  # 如果是列表，直接使用
+        else:
+            raise ValueError("Source must be a string or a list of strings.")
+    
+        loader = None
+        try:
+            if source_type == SourceType.YOUTUBE:
+                loader = self.get_youtube_loader(sources)
+            elif source_type == SourceType.WEB:
+                loader = self.get_web_loader(sources)
+            else:
+                if file_info is None:
+                    raise ValueError("File information is required for file storage.")
+                
+                file_name = file_info.get("file_name", "")
+                content_type = file_info.get("content_type", "application/octet-stream")
+
+                loader = self.get_loader(file_name,file_path,content_type)
+            
+            file_path = loader.load()
+            docs = self.split_documents(file_path)
+            self.collection_manager.get_or_create_vector_store(collection_name).add_documents(docs)
+            return True
+        except Exception as e:
+            if e.__class__.__name__ == "UniqueConstraintError":
+                return True
+            log.exception(e)
+            return False
+
     def get_compress_retriever(self,retriever,filter_type):
         llm_filter = LLMChainFilter.from_llm(self.llm)
-        llm_filter1 = LLMListwiseRerank.from_llm(self.llm, top_n=1)
+        llm_rerank = LLMListwiseRerank.from_llm(self.llm, top_n=1)
         relevant_filter = EmbeddingsFilter(embeddings=self.embedding, similarity_threshold=0.76)
 
         redundant_filter = EmbeddingsRedundantFilter(embeddings=self.embedding)
@@ -80,91 +127,45 @@ class KnowledgeManager:
 
         return compression_retriever
     
-    def get_retriever(self,k: int):
-        bm25_retriever = BM25Retriever.from_texts(
-                texts=documents.get("documents"),
-                metadatas=documents.get("metadatas"),
-            )
-        bm25_retriever.k = k
-
-        chroma_retriever = ChromaRetriever(
-            collection=collection,
-            embedding_function=self.embedding,
-            top_n=k,
-        )
+    def get_retriever(self,collection_name,k: int,bm25: bool):
         
-        ensemble_retriever = EnsembleRetriever(
-            retrievers=[bm25_retriever, chroma_retriever], weights=[0.5, 0.5]
+        chroma_retriever = self.collection_manager.get_or_create_vector_store(collection_name).as_retriever(
+            search_type="mmr",
+            search_kwargs={'k': k, 'lambda_mult': 0.25}
         )
-        return ensemble_retriever
-    
-    def query_doc_with_hybrid_search(
-        self,
-        collection_name: str,
-        query: str,
-        k: int,
-        reranking_function,
-        r: float,
-    ):
-        try:
-            collection = self.client.get_collection(name=collection_name)
-            documents = collection.get()  # get all documents
+        retriever = chroma_retriever
 
-            bm25_retriever = BM25Retriever.from_texts(
-                texts=documents.get("documents"),
-                metadatas=documents.get("metadatas"),
-            )
+        if bm25:
+            docs = self.collection_manager.get_documents(collection_name)
+            bm25_retriever = BM25Retriever.from_documents(documents=docs)
             bm25_retriever.k = k
-
-            chroma_retriever = ChromaRetriever(
-                collection=collection,
-                embedding_function=self.embedding,
-                top_n=k,
-            )
-
-            ensemble_retriever = EnsembleRetriever(
+            retriever = EnsembleRetriever(
                 retrievers=[bm25_retriever, chroma_retriever], weights=[0.5, 0.5]
             )
-
-            compressor = RerankCompressor(
-                embedding_function=self.embedding,
-                top_n=k,
-                reranking_function=reranking_function,
-                r_score=r,
-            )
-
-            compression_retriever = ContextualCompressionRetriever(
-                base_compressor=compressor, base_retriever=ensemble_retriever
-            )
-
-            result = compression_retriever.invoke(query)
-            result = {
-                "distances": [[d.metadata.get("score") for d in result]],
-                "documents": [[d.page_content for d in result]],
-                "metadatas": [[d.metadata for d in result]],
-            }
-
-            log.info(f"query_doc_with_hybrid_search:result {result}")
-            return result
-        except Exception as e:
-            raise e
+        return retriever
+    
     
     def query_doc(self,
-        collection_name: str,
+        collection_name: Union[str, List[str]],
         query: str,
         k: int,
+        bm25: bool = True,
+        rerank: bool = True
     ):
+        collection_names = []
+        if isinstance(collection_name, str):
+            collection_names = [collection_name]  # 如果是字符串，转为列表
+        elif isinstance(collection_name, list):
+            collection_names = collection_name  # 如果是列表，直接使用
+        else:
+            raise ValueError("Source must be a string or a list of strings.")
+        
         try:
-            collection = self.client.get_collection(name=collection_name)
-            query_embeddings = self.embed_query(query)
-
-            result = collection.query(
-                query_embeddings=[query_embeddings],
-                n_results=k,
-            )
-
-            log.info(f"query_doc:result {result}")
-            return result
+            for name in collection_names:
+                retriever = self.get_retriever(name,k,bm25=bm25)
+                if rerank:
+                    retriever = self.get_compress_retriever(retriever)
+                docs = retriever.invoke(query)
         except Exception as e:
             raise e
     
@@ -201,63 +202,9 @@ class KnowledgeManager:
         else:
             return False
         
-    def store_docs_in_vector_db(
-            self,docs, collection_name, metadata: Optional[dict] = None, overwrite: bool = False
-    ) -> bool:
-        log.info(f"store_docs_in_vector_db {docs} {collection_name}")
-
-        texts = [doc.page_content for doc in docs]
-        metadatas = [{**doc.metadata, **(metadata if metadata else {})} for doc in docs]
-
-        # ChromaDB does not like datetime formats
-        # for meta-data so convert them to string.
-        for metadata in metadatas:
-            for key, value in metadata.items():
-                if isinstance(value, datetime):
-                    metadata[key] = str(value)
-
-        try:
-            if overwrite:
-                for collection in CHROMA_CLIENT.list_collections():
-                    if collection_name == collection.name:
-                        log.info(f"deleting existing collection {collection_name}")
-                        CHROMA_CLIENT.delete_collection(name=collection_name)
-
-            collection = CHROMA_CLIENT.create_collection(name=collection_name)
-
-            embedding_func = get_embedding_function(
-                app.state.config.RAG_EMBEDDING_ENGINE,
-                app.state.config.RAG_EMBEDDING_MODEL,
-                app.state.sentence_transformer_ef,
-                app.state.config.OPENAI_API_KEY,
-                app.state.config.OPENAI_API_BASE_URL,
-                app.state.config.RAG_EMBEDDING_OPENAI_BATCH_SIZE,
-            )
-
-            embedding_texts = list(map(lambda x: x.replace("\n", " "), texts))
-            embeddings = embedding_func(embedding_texts)
-
-            for batch in create_batches(
-                api=CHROMA_CLIENT,
-                ids=[str(uuid.uuid4()) for _ in texts],
-                metadatas=metadatas,
-                embeddings=embeddings,
-                documents=texts,
-            ):
-                collection.add(*batch)
-
-            return True
-        except Exception as e:
-            if e.__class__.__name__ == "UniqueConstraintError":
-                return True
-
-            log.exception(e)
-
-            return False
-    
     def get_web_loader(self,url: Union[str, Sequence[str]], verify_ssl: bool = True):
         # Check if the URL is valid
-        if not validate_url(url):
+        if not self.validate_url(url):
             raise ValueError(ERROR_MESSAGES.INVALID_URL)
         return SafeWebBaseLoader(
             url,
@@ -275,7 +222,7 @@ class KnowledgeManager:
             )
         return loader
 
-    def get_loader(self,filename: str, file_content_type: str, file_path: str):
+    def get_loader(self,filename: str, file_path: str, file_content_type: str=None):
         file_ext = filename.split(".")[-1].lower()
         known_type = True
 
@@ -406,108 +353,9 @@ class KnowledgeManager:
                                                 chunk_size=512, chunk_overlap=0)
         return text_splitter.split_documents(documents)
 
-    def retrieve_documents(self, names: List[str], query: str):
-        results = []
-        for name in names:
-            if name not in self.knowledge_bases:
-                print(f"Knowledge base '{name}' does not exist.")
-                continue
-            
-            retriever = self.knowledge_bases[name].as_retriever(
-                search_type="mmr",
-                search_kwargs={"score_threshold": 0.5, "k": 3}
-            )
-            docs = retriever.get_relevant_documents(query)
-            results.extend([{"name": name, "content": doc.page_content,"meta": doc.metadata} for doc in docs])
-            
-        
-        return results
-
 
 knowledgeBase = KnowledgeManager()
 
-
-class RerankCompressor(BaseDocumentCompressor):
-    embedding_function: Any
-    top_n: int
-    reranking_function: Any
-    r_score: float
-
-    class Config:
-        extra = Extra.forbid
-        arbitrary_types_allowed = True
-
-    def compress_documents(
-        self,
-        documents: Sequence[Document],
-        query: str,
-        callbacks: Optional[Callbacks] = None,
-    ) -> Sequence[Document]:
-        reranking = self.reranking_function is not None
-
-        if reranking:
-            scores = self.reranking_function.predict(
-                [(query, doc.page_content) for doc in documents]
-            )
-        else:
-            from sentence_transformers import util
-
-            query_embedding = self.embedding_function(query)
-            document_embedding = self.embedding_function(
-                [doc.page_content for doc in documents]
-            )
-            scores = util.cos_sim(query_embedding, document_embedding)[0]
-
-        docs_with_scores = list(zip(documents, scores.tolist()))
-        if self.r_score:
-            docs_with_scores = [
-                (d, s) for d, s in docs_with_scores if s >= self.r_score
-            ]
-
-        result = sorted(docs_with_scores, key=operator.itemgetter(1), reverse=True)
-        final_results = []
-        for doc, doc_score in result[: self.top_n]:
-            metadata = doc.metadata
-            metadata["score"] = doc_score
-            doc = Document(
-                page_content=doc.page_content,
-                metadata=metadata,
-            )
-            final_results.append(doc)
-        return final_results
-
-
-class ChromaRetriever(BaseRetriever):
-    collection: Any
-    embedding_function: Any
-    top_n: int
-
-    def _get_relevant_documents(
-        self,
-        query: str,
-        *,
-        run_manager: CallbackManagerForRetrieverRun,
-    ) -> list[Document]:
-        query_embeddings = self.embedding_function(query)
-
-        results = self.collection.query(
-            query_embeddings=[query_embeddings],
-            n_results=self.top_n,
-        )
-
-        ids = results["ids"][0]
-        metadatas = results["metadatas"][0]
-        documents = results["documents"][0]
-
-        results = []
-        for idx in range(len(ids)):
-            results.append(
-                Document(
-                    metadata=metadatas[idx],
-                    page_content=documents[idx],
-                )
-            )
-        return results
 
 class TikaLoader:
     def __init__(self, file_path, mime_type=None):
