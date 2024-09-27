@@ -48,7 +48,7 @@ class FilterType(Enum):
 class KnowledgeManager:
     def __init__(self, data_path, tenant=None, database=None):
         self.embedding =OllamaEmbeddings(
-            model="bge-m3",
+            model="bge-m3:latest",
             base_url="http://localhost:11434",
         )
 
@@ -128,7 +128,7 @@ class KnowledgeManager:
     
     def get_retriever(self,collection_name,k: int,bm25: bool):
         
-        chroma_retriever = self.collection_manager.get_or_create_vector_store(collection_name).as_retriever(
+        chroma_retriever = self.collection_manager.get_vector_store(collection_name).as_retriever(
             search_type="mmr",
             search_kwargs={'k': k, 'lambda_mult': 0.25}
         )
@@ -148,8 +148,8 @@ class KnowledgeManager:
         collection_name: Union[str, List[str]],
         query: str,
         k: int,
-        bm25: bool = True,
-        rerank: bool = True
+        bm25: bool = False,
+        rerank: bool = False
     ):
         collection_names = []
         if isinstance(collection_name, str):
@@ -374,3 +374,5 @@ if __name__ == '__main__':
     knowledgeBase = KnowledgeManager(data_path="./test/")
     knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.pdf",
                         source_type=SourceType.FILE,file_name='ir2023_ashare.pdf')
+    docs = knowledgeBase.query_doc("test","董事长报告书",k=2)
+    print(docs)

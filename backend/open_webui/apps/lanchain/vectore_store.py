@@ -11,13 +11,13 @@ class CollectionManager:
             settings=Settings(allow_reset=allow_reset, anonymized_telemetry=anonymized_telemetry),
             database=database
         )
-        self.embedding = OllamaEmbeddings(model="bge-m3", base_url="http://localhost:11434")
+        self.embedding = OllamaEmbeddings(model="bge-m3:latest", base_url="http://localhost:11434")
 
     def get_or_create_collection(self, collection_name):
         """Get or create a collection by name."""
         try:
             return self.client.get_collection(name=collection_name)
-        except chromadb.errors.CollectionAlreadyExistsError:
+        except Exception as e:
             return self.create_collection(collection_name)
 
     def delete_collection(self, collection_name):
@@ -35,11 +35,11 @@ class CollectionManager:
     def get_vector_store(self, collection_name) -> Chroma:
         """Get or create a vector store for the given collection name."""
         try:
-            collection = self.get_or_create_collection(collection_name)
-        except chromadb.errors.CollectionAlreadyExistsError as e:
-            raise ValueError(f"Collection '{collection_name}' already exists with errors: {e}")
+            collection = self.client.get_or_create_collection(name=collection_name)
+        except Exception as e:
+            raise ValueError(f"Collection '{collection_name}' {e}")
         
-        return Chroma(persist_directory=self.client.path, 
+        return Chroma(client=self.client, 
                       embedding_function=self.embedding, 
                       collection_name=collection.name)
 
