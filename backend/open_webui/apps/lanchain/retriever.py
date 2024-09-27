@@ -198,7 +198,7 @@ class KnowledgeManager:
                         raise ValueError(ERROR_MESSAGES.INVALID_URL)
             return True
         elif isinstance(url, Sequence):
-            return all(validate_url(u) for u in url)
+            return all(self.validate_url(u) for u in url)
         else:
             return False
         
