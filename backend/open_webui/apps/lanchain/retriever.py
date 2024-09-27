@@ -33,6 +33,7 @@ import requests
 import validators
 import socket
 import chromadb
+import urllib.parse
 from chromadb import Settings
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline,EmbeddingsFilter,LLMListwiseRerank,LLMChainFilter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
@@ -47,6 +48,11 @@ class SourceType(Enum):
     YOUTUBE = "youtube"
     WEB = "web"
     FILE = "file"
+
+class FilterType(Enum):
+    LLM_FILTER = "llm_chain_filter"
+    LLM_RERANK = "llm_listwise_rerank"
+    RELEVANT_FILTER = "embeddings_filter"
 
 class KnowledgeManager:
     def __init__(self, data_path, tenant, database):
@@ -110,10 +116,16 @@ class KnowledgeManager:
             log.exception(e)
             return False
 
-    def get_compress_retriever(self,retriever,filter_type):
-        llm_filter = LLMChainFilter.from_llm(self.llm)
-        llm_rerank = LLMListwiseRerank.from_llm(self.llm, top_n=1)
-        relevant_filter = EmbeddingsFilter(embeddings=self.embedding, similarity_threshold=0.76)
+    def get_compress_retriever(self,retriever,filter_type:FilterType = FilterType.LLM_FILTER):
+        relevant_filter = None
+        if filter_type == FilterType.LLM_FILTER:
+            relevant_filter = LLMChainFilter.from_llm(self.llm)
+        
+        elif filter_type == FilterType.LLM_RERANK:
+            relevant_filter = LLMListwiseRerank.from_llm(self.llm, top_n=1)
+        
+        elif filter_type == FilterType.RELEVANT_FILTER:
+            relevant_filter = EmbeddingsFilter(embeddings=self.embedding, similarity_threshold=0.76)
 
         redundant_filter = EmbeddingsRedundantFilter(embeddings=self.embedding)
         
@@ -166,6 +178,7 @@ class KnowledgeManager:
                 if rerank:
                     retriever = self.get_compress_retriever(retriever)
                 docs = retriever.invoke(query)
+                return docs
         except Exception as e:
             raise e
     
@@ -182,20 +195,20 @@ class KnowledgeManager:
     def validate_url(self,url: Union[str, Sequence[str]]):
         if isinstance(url, str):
             if isinstance(validators.url(url), validators.ValidationError):
-                raise ValueError(ERROR_MESSAGES.INVALID_URL)
+                raise ValueError("Oops! The URL you provided is invalid. Please double-check and try again.")
             if not ENABLE_RAG_LOCAL_WEB_FETCH:
                 # Local web fetch is disabled, filter out any URLs that resolve to private IP addresses
                 parsed_url = urllib.parse.urlparse(url)
                 # Get IPv4 and IPv6 addresses
-                ipv4_addresses, ipv6_addresses = resolve_hostname(parsed_url.hostname)
+                ipv4_addresses, ipv6_addresses = self.resolve_hostname(parsed_url.hostname)
                 # Check if any of the resolved addresses are private
                 # This is technically still vulnerable to DNS rebinding attacks, as we don't control WebBaseLoader
                 for ip in ipv4_addresses:
                     if validators.ipv4(ip, private=True):
-                        raise ValueError(ERROR_MESSAGES.INVALID_URL)
+                        raise ValueError("Oops! The URL you provided is invalid. Please double-check and try again.")
                 for ip in ipv6_addresses:
                     if validators.ipv6(ip, private=True):
-                        raise ValueError(ERROR_MESSAGES.INVALID_URL)
+                        raise ValueError("Oops! The URL you provided is invalid. Please double-check and try again.")
             return True
         elif isinstance(url, Sequence):
             return all(self.validate_url(u) for u in url)
@@ -205,7 +218,7 @@ class KnowledgeManager:
     def get_web_loader(self,url: Union[str, Sequence[str]], verify_ssl: bool = True):
         # Check if the URL is valid
         if not self.validate_url(url):
-            raise ValueError(ERROR_MESSAGES.INVALID_URL)
+            raise ValueError("Oops! The URL you provided is invalid. Please double-check and try again.")
         return SafeWebBaseLoader(
             url,
             verify_ssl=verify_ssl,
@@ -336,7 +349,7 @@ class KnowledgeManager:
 
         return loader, known_type
 
-    def split_documents(self, documents):
+    def split_documents(self, documents,chunk_size=512,chunk_overlap=512):
         text_splitter = RecursiveCharacterTextSplitter(separators=[
                                                     "\n\n",
                                                     "\n",
@@ -350,7 +363,7 @@ class KnowledgeManager:
                                                     "\u3002",  # Ideographic full stop
                                                     "",
                                                 ],
-                                                chunk_size=512, chunk_overlap=0)
+                                                chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         return text_splitter.split_documents(documents)
 
 
