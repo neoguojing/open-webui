@@ -30,6 +30,10 @@ import urllib.parse
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline,EmbeddingsFilter,LLMListwiseRerank,LLMChainFilter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
 from vectore_store import CollectionManager
+
+from langchain_community.document_loaders import AsyncChromiumLoader
+from langchain_community.document_transformers import BeautifulSoupTransformer
+
 import logging
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -45,6 +49,62 @@ class FilterType(Enum):
     LLM_FILTER = "llm_chain_filter"
     LLM_RERANK = "llm_listwise_rerank"
     RELEVANT_FILTER = "embeddings_filter"
+    
+# Load HTML
+loader = AsyncChromiumLoader(["https://www.wsj.com"])
+html = loader.load()
+bs_transformer = BeautifulSoupTransformer()
+docs_transformed = bs_transformer.transform_documents(html, tags_to_extract=["span"])
+from langchain.chains import create_extraction_chain
+
+schema = {
+    "properties": {
+        "news_article_title": {"type": "string"},
+        "news_article_summary": {"type": "string"},
+    },
+    "required": ["news_article_title", "news_article_summary"],
+}
+
+
+def extract(content: str, schema: dict):
+    return create_extraction_chain(schema=schema, llm=llm).run(content)
+
+
+def scrape_with_playwright(urls, schema):
+    loader = AsyncChromiumLoader(urls)
+    docs = loader.load()
+    bs_transformer = BeautifulSoupTransformer()
+    docs_transformed = bs_transformer.transform_documents(
+        docs, tags_to_extract=["span"]
+    )
+    print("Extracting content with LLM")
+
+    # Grab the first 1000 tokens of the site
+    splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        chunk_size=1000, chunk_overlap=0
+    )
+    splits = splitter.split_documents(docs_transformed)
+
+    # Process the first split
+    extracted_content = extract(schema=schema, content=splits[0].page_content)
+    pprint.pprint(extracted_content)
+    return extracted_content
+
+from langchain.retrievers.web_research import WebResearchRetriever
+from langchain_community.utilities import GoogleSearchAPIWrapper
+
+web_research_retriever = WebResearchRetriever.from_llm(
+    vectorstore=vectorstore, llm=llm, search=search
+)
+
+from langchain.chains import RetrievalQAWithSourcesChain
+
+user_input = "How do LLM Powered Autonomous Agents work?"
+qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
+    llm, retriever=web_research_retriever
+)
+result = qa_chain({"question": user_input})
+result
 
 class KnowledgeManager:
     def __init__(self, data_path, tenant=None, database=None):
@@ -97,6 +157,8 @@ class KnowledgeManager:
             
             print("start load file---------")
             raw_docs = loader.load()
+            for doc in raw_docs:
+                doc.page_content = doc.page_content.replace("\n", " ")
             print("loader file count:",len(raw_docs))
             docs = self.split_documents(raw_docs)
             print("splited documents count:",len(docs))
@@ -110,7 +172,7 @@ class KnowledgeManager:
             log.exception(e)
             return False
 
-    def get_compress_retriever(self,retriever,filter_type:FilterType = FilterType.LLM_RERANK):
+    def get_compress_retriever(self,retriever,filter_type:FilterType):
         relevant_filter = None
         if filter_type == FilterType.LLM_FILTER:
             relevant_filter = LLMChainFilter.from_llm(self.llm)
@@ -154,9 +216,10 @@ class KnowledgeManager:
     def query_doc(self,
         collection_name: Union[str, List[str]],
         query: str,
-        k: int,
+        k: int = 3,
         bm25: bool = False,
-        rerank: bool = False
+        rerank: bool = False,
+        filter_type: FilterType = FilterType.LLM_FILTER
     ):
         collection_names = []
         if isinstance(collection_name, str):
@@ -170,7 +233,7 @@ class KnowledgeManager:
             for name in collection_names:
                 retriever = self.get_retriever(name,k,bm25=bm25)
                 if rerank:
-                    retriever = self.get_compress_retriever(retriever)
+                    retriever = self.get_compress_retriever(retriever,filter_type)
                 docs = retriever.invoke(query)
                 return docs
         except Exception as e:
@@ -288,7 +351,7 @@ class KnowledgeManager:
 
         if file_ext == "pdf":
             loader = PyPDFLoader(
-                file_path, extract_images=True
+                file_path, extract_images=False
             )
         elif file_ext == "csv":
             loader = CSVLoader(file_path)
@@ -379,9 +442,9 @@ class SafeWebBaseLoader(WebBaseLoader):
 
 if __name__ == '__main__':
     knowledgeBase = KnowledgeManager(data_path="./test/")
-    # knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.txt",
-    #                     source_type=SourceType.FILE,file_name='ir2023_ashare.txt')
-    docs = knowledgeBase.query_doc("test","董事长报告书的内容",k=2,bm25=True,rerank=True)
+    knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.docx",
+                        source_type=SourceType.FILE,file_name='ir2023_ashare.docx')
+    docs = knowledgeBase.query_doc("test","董事长报告书",k=2,bm25=False,rerank=True)
     print(docs)
     # emb = knowledgeBase.embedding.embed_query("wsewqeqe")
     # print(emb)
