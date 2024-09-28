@@ -309,3 +309,7 @@ cypress/screenshots
 .vscode/settings.json
 backend/open_webui/apps/lanchain/test/chroma.sqlite3
 test/chroma.sqlite3
+backend/open_webui/apps/lanchain/test/070c115d-01c4-4b34-af45-f5eb03485c5a/data_level0.bin
+backend/open_webui/apps/lanchain/test/070c115d-01c4-4b34-af45-f5eb03485c5a/header.bin
+backend/open_webui/apps/lanchain/test/070c115d-01c4-4b34-af45-f5eb03485c5a/length.bin
+backend/open_webui/apps/lanchain/test/070c115d-01c4-4b34-af45-f5eb03485c5a/link_lists.bin

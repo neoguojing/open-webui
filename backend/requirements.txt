@@ -39,6 +39,7 @@ langchain-community==0.2.12
 langchain-chroma==0.1.2
 langchain_openai
 langchain_ollama
+langchain_chroma
 langgraph
 
 fake-useragent==1.5.1

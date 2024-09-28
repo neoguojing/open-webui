@@ -19,8 +19,8 @@ from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
-# from langchain_ollama import OllamaEmbeddings
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
+# from langchain_community.embeddings import OllamaEmbeddings
 from langchain_openai import ChatOpenAI,OpenAIEmbeddings
 from typing import Any,List,Dict,Iterator, Optional, Sequence, Union
 import requests
@@ -51,7 +51,7 @@ class KnowledgeManager:
         self.embedding =OllamaEmbeddings(
             model="bge-m3:latest",
             base_url="http://localhost:11434",
-            num_gpu=100
+            # num_gpu=100
         )
 
         self.llm =ChatOpenAI(
@@ -110,7 +110,7 @@ class KnowledgeManager:
             log.exception(e)
             return False
 
-    def get_compress_retriever(self,retriever,filter_type:FilterType = FilterType.LLM_FILTER):
+    def get_compress_retriever(self,retriever,filter_type:FilterType = FilterType.LLM_RERANK):
         relevant_filter = None
         if filter_type == FilterType.LLM_FILTER:
             relevant_filter = LLMChainFilter.from_llm(self.llm)
@@ -332,7 +332,7 @@ class KnowledgeManager:
 
         return loader, known_type
 
-    def split_documents(self, documents,chunk_size=512,chunk_overlap=30):
+    def split_documents(self, documents,chunk_size=1024,chunk_overlap=50):
         text_splitter = RecursiveCharacterTextSplitter(separators=[
                                                     "\n\n",
                                                     "\n",
@@ -379,9 +379,9 @@ class SafeWebBaseLoader(WebBaseLoader):
 
 if __name__ == '__main__':
     knowledgeBase = KnowledgeManager(data_path="./test/")
-    knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.txt",
-                        source_type=SourceType.FILE,file_name='ir2023_ashare.txt')
-    docs = knowledgeBase.query_doc("test","董事长报告书",k=2)
+    # knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.txt",
+    #                     source_type=SourceType.FILE,file_name='ir2023_ashare.txt')
+    docs = knowledgeBase.query_doc("test","董事长报告书的内容",k=2,bm25=True,rerank=True)
     print(docs)
     # emb = knowledgeBase.embedding.embed_query("wsewqeqe")
     # print(emb)
