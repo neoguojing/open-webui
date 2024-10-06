@@ -1,4 +1,4 @@
-from langchain.prompts import MessagesPlaceholder,ChatPromptTemplate
+from langchain.prompts import MessagesPlaceholder,ChatPromptTemplate,PromptTemplate
 from langchain_core.messages import HumanMessage, BaseMessage,SystemMessage,AIMessage
 
 
@@ -20,3 +20,11 @@ agent_prompt = ChatPromptTemplate.from_messages(
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
+
+DEFAULT_SEARCH_PROMPT = PromptTemplate(
+    input_variables=["question"],
+    template="""You are an assistant tasked with improving Google search \
+results. Generate THREE Google search queries that are similar to \
+this question. The output should be a numbered list of questions and each \
+should have a question mark at the end: {question}""",
+)

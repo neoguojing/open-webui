@@ -30,9 +30,12 @@ import urllib.parse
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline,EmbeddingsFilter,LLMListwiseRerank,LLMChainFilter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
 from vectore_store import CollectionManager
-
-from langchain_community.document_loaders import AsyncChromiumLoader
+from prompt import DEFAULT_SEARCH_PROMPT
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
+from langchain_community.tools import DuckDuckGoSearchResults
+from langchain_community.document_loaders import AsyncChromiumLoader,AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
+from langchain_community.retrievers.web_research import QuestionListOutputParser
 
 import logging
 log = logging.getLogger(__name__)
@@ -51,60 +54,18 @@ class FilterType(Enum):
     RELEVANT_FILTER = "embeddings_filter"
     
 # Load HTML
-loader = AsyncChromiumLoader(["https://www.wsj.com"])
-html = loader.load()
-bs_transformer = BeautifulSoupTransformer()
-docs_transformed = bs_transformer.transform_documents(html, tags_to_extract=["span"])
-from langchain.chains import create_extraction_chain
+# loader = AsyncChromiumLoader(["https://www.wsj.com"])
+# html = loader.load()
+# bs_transformer = BeautifulSoupTransformer()
 
-schema = {
-    "properties": {
-        "news_article_title": {"type": "string"},
-        "news_article_summary": {"type": "string"},
-    },
-    "required": ["news_article_title", "news_article_summary"],
-}
+# from langchain.chains import RetrievalQAWithSourcesChain
 
-
-def extract(content: str, schema: dict):
-    return create_extraction_chain(schema=schema, llm=llm).run(content)
-
-
-def scrape_with_playwright(urls, schema):
-    loader = AsyncChromiumLoader(urls)
-    docs = loader.load()
-    bs_transformer = BeautifulSoupTransformer()
-    docs_transformed = bs_transformer.transform_documents(
-        docs, tags_to_extract=["span"]
-    )
-    print("Extracting content with LLM")
-
-    # Grab the first 1000 tokens of the site
-    splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-        chunk_size=1000, chunk_overlap=0
-    )
-    splits = splitter.split_documents(docs_transformed)
-
-    # Process the first split
-    extracted_content = extract(schema=schema, content=splits[0].page_content)
-    pprint.pprint(extracted_content)
-    return extracted_content
-
-from langchain.retrievers.web_research import WebResearchRetriever
-from langchain_community.utilities import GoogleSearchAPIWrapper
-
-web_research_retriever = WebResearchRetriever.from_llm(
-    vectorstore=vectorstore, llm=llm, search=search
-)
-
-from langchain.chains import RetrievalQAWithSourcesChain
-
-user_input = "How do LLM Powered Autonomous Agents work?"
-qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
-    llm, retriever=web_research_retriever
-)
-result = qa_chain({"question": user_input})
-result
+# user_input = "How do LLM Powered Autonomous Agents work?"
+# qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
+#     llm, retriever=web_research_retriever
+# )
+# result = qa_chain({"question": user_input})
+# result
 
 class KnowledgeManager:
     def __init__(self, data_path, tenant=None, database=None):
@@ -119,6 +80,8 @@ class KnowledgeManager:
             openai_api_key="121212",
             base_url="http://localhost:11434/v1",
         )
+        
+        self.search_chain = DEFAULT_SEARCH_PROMPT | self.llm | QuestionListOutputParser()
 
         self.collection_manager = CollectionManager(data_path)
 
@@ -275,12 +238,13 @@ class KnowledgeManager:
         # Check if the URL is valid
         if not self.validate_url(url):
             raise ValueError("Oops! The URL you provided is invalid. Please double-check and try again.")
-        return SafeWebBaseLoader(
-            url,
-            verify_ssl=verify_ssl,
-            requests_per_second=10,
-            continue_on_failure=True,
-        )
+        # return SafeWebBaseLoader(
+        #     url,
+        #     verify_ssl=verify_ssl,
+        #     requests_per_second=10,
+        #     continue_on_failure=True,
+        # )
+        return AsyncChromiumLoader(url)
     
     def get_youtube_loader(self,url: Union[str, Sequence[str]]):
         loader = YoutubeLoader.from_youtube_url(
@@ -394,6 +358,53 @@ class KnowledgeManager:
             known_type = False
 
         return loader, known_type
+    
+    def web_search(self,query,collection_name="web",region="cn-zh",time="d",max_results=2):
+        questions = self.search_chain.invoke({"question":query})
+        print("questions:",questions)
+        
+        search = DuckDuckGoSearchAPIWrapper(region=region, time=time, max_results=max_results,source="news")
+        bs_transformer = BeautifulSoupTransformer()
+        vector_store = self.collection_manager.get_vector_store(collection_name)
+        
+        urls_to_look = []
+        url_meta_map = {}
+        try:
+            for query in questions:
+                print(query)
+                search_results = search.results(query,max_results=1)
+                log.info("Searching for relevant urls...")
+                log.info(f"Search results: {search_results}")
+                for res in search_results:
+                    print(res)
+                    if res.get("link", None):
+                        urls_to_look.append(res["link"])
+                        url_meta_map[res["link"]] = res
+        
+        except Exception as e:
+            log.error(f"Error search: {e}")
+        
+        print("url_meta_map:",url_meta_map)
+        # Relevant urls
+        urls = set(urls_to_look)
+        docs = None
+        if urls:
+            loader = AsyncChromiumLoader(urls)
+            log.info("Indexing new urls...")
+            docs = loader.load()
+            print("load docs:",len(docs))
+            docs_transformed = bs_transformer.transform_documents(
+                docs, tags_to_extract=["span"]
+            )
+            docs = list(docs_transformed)
+            print("transform docs:",len(docs))
+            docs = self.split_documents(docs)
+            print("split docs:",len(docs))
+            for doc in docs:
+                doc.metadata=url_meta_map[doc.metadata['source']]
+            vector_store.add_documents(docs)
+
+        return docs
 
     def split_documents(self, documents,chunk_size=1024,chunk_overlap=50):
         text_splitter = RecursiveCharacterTextSplitter(separators=[
@@ -442,11 +453,13 @@ class SafeWebBaseLoader(WebBaseLoader):
 
 if __name__ == '__main__':
     knowledgeBase = KnowledgeManager(data_path="./test/")
-    knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.docx",
-                        source_type=SourceType.FILE,file_name='ir2023_ashare.docx')
-    docs = knowledgeBase.query_doc("test","董事长报告书",k=2,bm25=False,rerank=True)
-    print(docs)
+    # knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.docx",
+    #                     source_type=SourceType.FILE,file_name='ir2023_ashare.docx')
+    # docs = knowledgeBase.query_doc("test","董事长报告书",k=2,bm25=False,rerank=True)
+    # print(docs)
     # emb = knowledgeBase.embedding.embed_query("wsewqeqe")
     # print(emb)
     # resp = knowledgeBase.llm.invoke("hhhhh")
     # print(resp)
+    docs = knowledgeBase.web_search("中国的股市如何估值？")
+    print(docs)
