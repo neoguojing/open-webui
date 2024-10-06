@@ -136,7 +136,7 @@ class KnowledgeManager:
             log.exception(e)
             return False
 
-    def get_compress_retriever(self,retriever,filter_type:FilterType):
+    def get_compress_retriever(self,retriever,filter_type:FilterType=FilterType.LLM_FILTER):
         relevant_filter = None
         if filter_type == FilterType.LLM_FILTER:
             relevant_filter = LLMChainFilter.from_llm(self.llm)
@@ -159,7 +159,7 @@ class KnowledgeManager:
 
         return compression_retriever
     
-    def get_retriever(self,collection_name,k: int,bm25: bool):
+    def get_retriever(self,collection_name,k: int,bm25: bool=False):
         
         chroma_retriever = self.collection_manager.get_vector_store(collection_name).as_retriever(
             search_type="mmr",

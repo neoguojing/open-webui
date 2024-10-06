@@ -71,7 +71,6 @@ class LangchainApp:
 
         self.db_path = db_path
         self.llm =ChatOpenAI(
-            # model="llama3.1",
             model=model,
             # model="phi3.5:3.8b-mini-instruct-fp16",
             # model="llama3.1-local",
