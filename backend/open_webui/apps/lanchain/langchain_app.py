@@ -9,57 +9,10 @@ from langchain.retrievers import EnsembleRetriever
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_ollama import OllamaEmbeddings
-
+from prompt import default_template,contextualize_q_template,doc_qa_template
 
 class LangchainApp:
-    system_prompt = (
-        "You are a helpful assistant. Answer all questions to the best of your ability."
-        "Please use {language} as default language."
-    )
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system",system_prompt),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}"),
-        ]
-    )
-
-    contextualize_q_system_prompt = (
-        "Given a chat history and the latest user question "
-        "which might reference context in the chat history, "
-        "formulate a standalone question which can be understood "
-        "without the chat history. Do NOT answer the question, "
-        "just reformulate it if needed and otherwise return it as is."
-        "Please use {language} as default language."
-    )
-    contextualize_q_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", contextualize_q_system_prompt),
-            MessagesPlaceholder("chat_history"),
-            ("human", "{input}"),
-        ]
-    )
-
-    doc_qa_prompt = (
-        "You are an assistant for question-answering tasks. "
-        "Use the following pieces of retrieved context to answer "
-        "the question. If you don't know the answer, say that you "
-        "don't know. Use three sentences maximum and keep the "
-        "answer concise."
-        "\n\n"
-        "{context}"
-        "\n\n"
-        "Please use {language} as default language."
-    )
-
-    qa_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", doc_qa_prompt),
-            MessagesPlaceholder("chat_history"),
-            ("human", "{input}"),
-        ]
-    )
-
+    
     llm: BaseChatModel
     runnable: Runnable
     with_message_history: RunnableWithMessageHistory
@@ -80,12 +33,12 @@ class LangchainApp:
         self.retrievers = retrievers
         if retrievers is not None:
             history_aware_retriever = create_history_aware_retriever(
-                self.llm, self.retriever, self.contextualize_q_prompt
+                self.llm, self.retriever, contextualize_q_template
             )
-            question_answer_chain = create_stuff_documents_chain(self.llm, self.qa_prompt)
+            question_answer_chain = create_stuff_documents_chain(self.llm, doc_qa_template)
             self.runnable = create_retrieval_chain(history_aware_retriever, question_answer_chain)
         else:
-            self.runnable = self.prompt | self.llm
+            self.runnable = default_template | self.llm
 
         self.with_message_history = RunnableWithMessageHistory(
             self.runnable ,
@@ -130,7 +83,7 @@ class LangchainApp:
                 yield item
         else:
             response = self.with_message_history.invoke(input_template,config)
-            yield response
+            return response
     
     def __call__(self,input: str,user_id="",conversation_id=""):
         response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id)
