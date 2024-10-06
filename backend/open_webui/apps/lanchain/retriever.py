@@ -68,17 +68,17 @@ class FilterType(Enum):
 # result
 
 class KnowledgeManager:
-    def __init__(self, data_path, tenant=None, database=None):
+    def __init__(self, data_path,ollama_url="http://localhost:11434",model="qwen2.5:14b", tenant=None, database=None):
         self.embedding =OllamaEmbeddings(
             model="bge-m3:latest",
-            base_url="http://localhost:11434",
+            base_url=ollama_url,
             # num_gpu=100
         )
 
         self.llm =ChatOpenAI(
-            model="qwen2.5:14b",
+            model=model,
             openai_api_key="121212",
-            base_url="http://localhost:11434/v1",
+            base_url=f"{ollama_url}/v1",
         )
         
         self.search_chain = DEFAULT_SEARCH_PROMPT | self.llm | QuestionListOutputParser()
@@ -122,13 +122,14 @@ class KnowledgeManager:
             raw_docs = loader.load()
             for doc in raw_docs:
                 doc.page_content = doc.page_content.replace("\n", " ")
+                doc.page_content = doc.page_content.replace("\t", "")
             print("loader file count:",len(raw_docs))
             docs = self.split_documents(raw_docs)
-            print("splited documents count:",len(docs))
+            print("splited documents count:",docs)
             store = self.collection_manager.get_vector_store(collection_name)
             store.add_documents(docs)
             print("add documents done------")
-            return True
+            return collection_name
         except Exception as e:
             if e.__class__.__name__ == "UniqueConstraintError":
                 return True
@@ -238,13 +239,13 @@ class KnowledgeManager:
         # Check if the URL is valid
         if not self.validate_url(url):
             raise ValueError("Oops! The URL you provided is invalid. Please double-check and try again.")
-        # return SafeWebBaseLoader(
-        #     url,
-        #     verify_ssl=verify_ssl,
-        #     requests_per_second=10,
-        #     continue_on_failure=True,
-        # )
-        return AsyncChromiumLoader(url)
+        return SafeWebBaseLoader(
+            url,
+            verify_ssl=verify_ssl,
+            requests_per_second=10,
+            continue_on_failure=True,
+        )
+        # return AsyncChromiumLoader(url)
     
     def get_youtube_loader(self,url: Union[str, Sequence[str]]):
         loader = YoutubeLoader.from_youtube_url(
@@ -358,35 +359,12 @@ class KnowledgeManager:
             known_type = False
 
         return loader, known_type
-    
-    def web_search(self,query,collection_name="web",region="cn-zh",time="d",max_results=2):
-        questions = self.search_chain.invoke({"question":query})
-        print("questions:",questions)
-        
-        search = DuckDuckGoSearchAPIWrapper(region=region, time=time, max_results=max_results,source="news")
+    # decrease
+    def web_parser(self,urls,metadata=None,collection_name=None):
         bs_transformer = BeautifulSoupTransformer()
-        vector_store = self.collection_manager.get_vector_store(collection_name)
-        
-        urls_to_look = []
-        url_meta_map = {}
-        try:
-            for query in questions:
-                print(query)
-                search_results = search.results(query,max_results=1)
-                log.info("Searching for relevant urls...")
-                log.info(f"Search results: {search_results}")
-                for res in search_results:
-                    print(res)
-                    if res.get("link", None):
-                        urls_to_look.append(res["link"])
-                        url_meta_map[res["link"]] = res
-        
-        except Exception as e:
-            log.error(f"Error search: {e}")
-        
-        print("url_meta_map:",url_meta_map)
-        # Relevant urls
-        urls = set(urls_to_look)
+        vector_store = None
+        if collection_name:
+            vector_store = self.collection_manager.get_vector_store(collection_name)
         docs = None
         if urls:
             loader = AsyncChromiumLoader(urls)
@@ -400,11 +378,43 @@ class KnowledgeManager:
             print("transform docs:",len(docs))
             docs = self.split_documents(docs)
             print("split docs:",len(docs))
-            for doc in docs:
-                doc.metadata=url_meta_map[doc.metadata['source']]
-            vector_store.add_documents(docs)
-
+            if metadata:
+                for doc in docs:
+                    doc.metadata=metadata[doc.metadata['source']]
+            if vector_store:
+                vector_store.add_documents(docs)
         return docs
+        
+    def web_search(self,query,collection_name="web",region="cn-zh",time="d",max_results=2):
+        questions = self.search_chain.invoke({"question":query})
+        print("questions:",questions)
+        
+        search = DuckDuckGoSearchAPIWrapper(region=region, time=time, max_results=max_results,source="news")
+        
+        urls_to_look = []
+        url_meta_map = {}
+        try:
+            for query in questions:
+                print(query)
+                search_results = search.results(query,max_results=1)
+                log.info("Searching for relevant urls...")
+                log.info(f"Search results: {search_results}")
+                for res in search_results:
+                    print(res)
+                    if res.get("link", None):
+                        urls_to_look.append(res["link"])
+                        # url_meta_map[res["link"]] = res
+        
+        except Exception as e:
+            log.error(f"Error search: {e}")
+        
+        # print("url_meta_map:",url_meta_map)
+        # Relevant urls
+        urls = set(urls_to_look)
+        
+        # docs = self.web_parser(urls,url_meta_map,collection_name)
+        return self.store(collection_name,list(urls),SourceType.WEB)
+         
 
     def split_documents(self, documents,chunk_size=1024,chunk_overlap=50):
         text_splitter = RecursiveCharacterTextSplitter(separators=[
@@ -455,11 +465,12 @@ if __name__ == '__main__':
     knowledgeBase = KnowledgeManager(data_path="./test/")
     # knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.docx",
     #                     source_type=SourceType.FILE,file_name='ir2023_ashare.docx')
-    # docs = knowledgeBase.query_doc("test","董事长报告书",k=2,bm25=False,rerank=True)
+    docs = knowledgeBase.query_doc("web","中国股市",k=2,bm25=False,rerank=True)
     # print(docs)
     # emb = knowledgeBase.embedding.embed_query("wsewqeqe")
     # print(emb)
     # resp = knowledgeBase.llm.invoke("hhhhh")
     # print(resp)
-    docs = knowledgeBase.web_search("中国的股市如何估值？")
+    # docs = knowledgeBase.web_search("中国的股市如何估值？")
+    # docs = knowledgeBase.web_parser(["https://new.qq.com/rain/a/20241005A071AG00"])
     print(docs)
