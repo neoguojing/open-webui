@@ -19,7 +19,7 @@ class LangchainApp:
     db_path: str
     retrievers: EnsembleRetriever
 
-    def __init__(self,model="qwen2.5:latest",db_path="sqlite:///memory.db",
+    def __init__(self,model="qwen2.5:14b",db_path="sqlite:///langchain.db",
                  retrievers=None,base_url="http://localhost:11434/v1/"):
 
         self.db_path = db_path

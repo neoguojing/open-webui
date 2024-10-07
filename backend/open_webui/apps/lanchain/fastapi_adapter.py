@@ -1,41 +1,35 @@
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
-from typing import Optional, Union
+from typing import Optional, Union,Any,Dict
 from langchain_app import LangchainApp
 
 app = LangchainApp()
 
 async def post_streaming_url(
-    url: str, payload: Union[str, bytes], stream: bool = True, content_type=None
+    user_id: str,session_id: str, payload: Dict[str, Any], stream: bool = True, content_type=None
 ):
-    r = None
+    input = None
+    model = payload["model"]
     try:
-        # session = aiohttp.ClientSession(
-        #     trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
-        # )
-        # r = await session.post(
-        #     url,
-        #     data=payload,
-        #     headers={"Content-Type": "application/json"},
-        # )
-        # r.raise_for_status()
-        app()
+        if payload["messages"]:
+            input = payload["messages"][-1]["content"]
+            
         if stream:
             headers = dict(r.headers)
             if content_type:
                 headers["Content-Type"] = content_type
             return StreamingResponse(
-                r.content,
+                app.chat(input,user_id=user_id,conversation_id=session_id,stream=stream),
                 status_code=r.status,
                 headers=headers,
                 background=BackgroundTask(
-                    cleanup_response, response=r, session=session
+                    cleanup_response
                 ),
             )
         else:
-            res = await r.json()
-            await cleanup_response(r, session)
+            res = app.chat(input,user_id=user_id,conversation_id=session_id,stream=stream)
+            await cleanup_response()
             return res
 
     except Exception as e:
@@ -53,12 +47,6 @@ async def post_streaming_url(
             detail=error_detail,
         )
 
-async def cleanup_response(
-    response,
-    session,
-):
-    if response:
-        response.close()
-    if session:
-        await session.close()
+async def cleanup_response():
+    pass
 

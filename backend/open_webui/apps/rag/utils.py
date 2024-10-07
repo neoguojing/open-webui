@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional, Union
+from typing import Optional, Union,Any
 
 import requests
 from open_webui.apps.ollama.main import (
@@ -13,6 +13,8 @@ from huggingface_hub import snapshot_download
 from langchain.retrievers import ContextualCompressionRetriever, EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks.manager import CallbackManagerForRetrieverRun
 from open_webui.utils.misc import get_last_user_message
 
 log = logging.getLogger(__name__)
