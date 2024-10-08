@@ -28,9 +28,12 @@ system_prompt = (
 
 default_template = ChatPromptTemplate.from_messages(
     [
-        SystemMessage(content=system_prompt),
+        (
+            "system",
+            system_prompt
+        ),
         MessagesPlaceholder(variable_name="chat_history"),
-        HumanMessage(content="{input}"),
+        ("human", "{input}")
     ]
 )
 
@@ -45,9 +48,12 @@ contextualize_q_system_prompt = (
 
 contextualize_q_template = ChatPromptTemplate.from_messages(
     [
-        SystemMessage(content=contextualize_q_system_prompt),
+        (
+            "system",
+            contextualize_q_system_prompt
+        ),
         MessagesPlaceholder("chat_history"),
-        HumanMessage(content="{input}"),
+        ("human", "{input}")
     ]
 )
 
@@ -65,9 +71,12 @@ doc_qa_prompt = (
 
 doc_qa_template = ChatPromptTemplate.from_messages(
     [
-        SystemMessage(content=doc_qa_prompt),
+        (
+            "system",
+            doc_qa_prompt
+        ),
         MessagesPlaceholder("chat_history"),
-        HumanMessage(content="{input}"),
+        ("human", "{input}")
     ]
 )
 

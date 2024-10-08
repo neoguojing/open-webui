@@ -9,7 +9,10 @@ from langchain.retrievers import EnsembleRetriever
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_ollama import OllamaEmbeddings
+from langchain_ollama.llms import OllamaLLM
 from prompt import default_template,contextualize_q_template,doc_qa_template
+import json
+from datetime import datetime,timezone
 
 class LangchainApp:
     
@@ -23,6 +26,7 @@ class LangchainApp:
                  retrievers=None,base_url="http://localhost:11434/v1/"):
 
         self.db_path = db_path
+        self.model = model
         self.llm =ChatOpenAI(
             model=model,
             # model="phi3.5:3.8b-mini-instruct-fp16",
@@ -30,6 +34,8 @@ class LangchainApp:
             openai_api_key="121212",
             base_url=base_url,
         )
+        
+        # self.llm  = OllamaLLM(model=model,base_url="http://localhost:11434")
         self.retrievers = retrievers
         if retrievers is not None:
             history_aware_retriever = create_history_aware_retriever(
@@ -79,11 +85,35 @@ class LangchainApp:
         response = None
         if stream:
             response = self.with_message_history.stream(input_template,config)
-            for item in response:
-                yield item
+            return response
         else:
             response = self.with_message_history.invoke(input_template,config)
             return response
+    
+    def ollama(self,input: str,user_id="",conversation_id=""):
+        response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id)
+        for item in response:
+            # 从每个 item 中提取 'content'
+            content = item.content
+            isDone = False
+            finish_reason = None
+            if item.response_metadata:
+                isDone = True
+                finish_reason = item.response_metadata['finish_reason']
+            utc_now = datetime.now(timezone.utc)
+            utc_now_str = utc_now.isoformat() + 'Z'
+            message_data = {
+                "model": self.model,
+                "created_at": utc_now_str,
+                "message": {
+                    "role": "assistant",
+                    "content": content
+                },
+                "done": isDone,
+                "done_reason": finish_reason
+            }
+            
+            yield json.dumps(message_data) + "\n"  # 添加换行符
     
     def __call__(self,input: str,user_id="",conversation_id=""):
         response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id)
@@ -93,11 +123,11 @@ class LangchainApp:
             # 使用 yield 生成提取的 content
             yield content
 
-# if __name__ == "__main__":
-#     app = LangchainApp()
-#     # stream_generator = app.chat("介绍下南宋",stream=True)
-#     # # 遍历生成器
-#     # for response in stream_generator:
-#     #     print(response.content)
-#     ret = app.embed_query("我爱北京天安门")
-#     print(ret)
+if __name__ == "__main__":
+    app = LangchainApp()
+    stream_generator = app.ollama("hello")
+    # 遍历生成器
+    for response in stream_generator:
+        print(response)
+    # ret = app.embed_query("我爱北京天安门")
+    # print(ret)

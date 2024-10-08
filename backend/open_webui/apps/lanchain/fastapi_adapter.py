@@ -4,31 +4,58 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from typing import Optional, Union,Any,Dict
 from langchain_app import LangchainApp
 
+# {
+# 	"model": "qwen2.5:14b",
+# 	"created_at": "2024-10-08T13:54:01.747642283Z",
+# 	"message": {
+# 		"role": "assistant",
+# 		"content": ""
+# 	},
+# 	"done_reason": "stop",
+# 	"done": true,
+# 	"total_duration": 1246690171,
+# 	"load_duration": 11154470,
+# 	"prompt_eval_count": 244,
+# 	"prompt_eval_duration": 47987000,
+# 	"eval_count": 28,
+# 	"eval_duration": 491750000
+# }
+
+# {
+# 	"model": "qwen2.5:14b",
+# 	"created_at": "2024-10-08T13:54:01.255843212Z",
+# 	"message": {
+# 		"role": "assistant",
+# 		"content": "Hello"
+# 	},
+# 	"done": false
+# }
+
 app = LangchainApp()
 
 async def post_streaming_url(
-    user_id: str,session_id: str, payload: Dict[str, Any], stream: bool = True, content_type=None
+    user_id: str,session_id: str, payload: Dict[str, Any], stream: bool = True, content_type="application/x-ndjson"
 ):
     input = None
     model = payload["model"]
     try:
         if payload["messages"]:
             input = payload["messages"][-1]["content"]
-            
+        
         if stream:
-            headers = dict(r.headers)
+            headers = {}
             if content_type:
                 headers["Content-Type"] = content_type
             return StreamingResponse(
-                app.chat(input,user_id=user_id,conversation_id=session_id,stream=stream),
-                status_code=r.status,
+                app.ollama(input,user_id=user_id,conversation_id=session_id,stream=stream),
+                status_code=200,
                 headers=headers,
                 background=BackgroundTask(
                     cleanup_response
                 ),
             )
         else:
-            res = app.chat(input,user_id=user_id,conversation_id=session_id,stream=stream)
+            res = app.ollama(input,user_id=user_id,conversation_id=session_id,stream=stream)
             await cleanup_response()
             return res
 

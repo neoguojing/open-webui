@@ -310,3 +310,4 @@ cypress/screenshots
 backend/open_webui/apps/lanchain/test/chroma.sqlite3
 test/chroma.sqlite3
 backend/open_webui/apps/lanchain/test/*
+langchain.db
