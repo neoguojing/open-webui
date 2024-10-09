@@ -19,6 +19,7 @@ from open_webui.config import (
     MODEL_FILTER_LIST,
     OLLAMA_BASE_URLS,
     UPLOAD_DIR,
+    RAG_TOP_K,
     AppConfig,
 )
 from open_webui.constants import ERROR_MESSAGES
@@ -777,7 +778,7 @@ async def generate_chat_completion(
     #     f"{url}/api/chat", json.dumps(payload), content_type="application/x-ndjson"
     # )
     return await langchain_fastapi_wrapper(
-        user_id=user.id,chat_id=chat_id,payload=payload
+        user_id=user.id,chat_id=chat_id,payload=payload,topk=RAG_TOP_K
     )
 
 

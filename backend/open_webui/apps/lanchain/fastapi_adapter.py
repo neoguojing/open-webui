@@ -3,7 +3,10 @@ from starlette.background import BackgroundTask
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from typing import Optional, Union,Any,Dict
 from langchain_app import LangchainApp
-
+from retriever import KnowledgeManager
+import logging
+log = logging.getLogger(__name__)
+log.setLevel("debug")
 # {
 # 	"model": "qwen2.5:14b",
 # 	"created_at": "2024-10-08T13:54:01.747642283Z",
@@ -31,18 +34,28 @@ from langchain_app import LangchainApp
 # 	"done": false
 # }
 
-
+knowledgeBase = KnowledgeManager(data_path="./vector_store")
 
 async def langchain_fastapi_wrapper(
-    user_id: str,session_id: str, payload: Dict[str, Any], stream: bool = True, content_type="application/x-ndjson"
+    user_id: str,session_id: str, payload: Dict[str, Any], stream: bool = True, content_type="application/x-ndjson",topk=1
 ):
     input = None
+    collections = None
+    contexts = None
     model = payload["model"]
-    app = LangchainApp(model=model)
+    app = None
+    retriever = None
 
     try:
+        files = payload.get("metadata", {}).get("files", None)
+        if files:
+            collections,contexts = get_rag_context(files)
+            retriever = knowledgeBase.get_retriever(collections,topk)
+        
+        app = LangchainApp(model=model,retrievers=retriever)
+
         if payload["messages"]:
-            input = payload["messages"][-1]["content"]
+            input = get_last_user_message(payload["messages"])
         
         if stream:
             headers = {}
@@ -79,3 +92,82 @@ async def langchain_fastapi_wrapper(
 async def cleanup_response():
     pass
 
+
+def get_last_user_message_item(messages: list[dict]) -> Optional[dict]:
+    for message in reversed(messages):
+        if message["role"] == "user":
+            return message
+    return None
+
+
+def get_content_from_message(message: dict) -> Optional[str]:
+    if isinstance(message["content"], list):
+        for item in message["content"]:
+            if item["type"] == "text":
+                return item["text"]
+    else:
+        return message["content"]
+    return None
+
+
+def get_last_user_message(messages: list[dict]) -> Optional[str]:
+    message = get_last_user_message_item(messages)
+    if message is None:
+        return None
+    return get_content_from_message(message)
+
+
+def get_rag_context(
+    files
+):
+    log.debug(f"files: {files}")
+
+    extracted_collections = []
+    relevant_contexts = []
+
+    for file in files:
+        context = None
+
+        collection_names = (
+            file["collection_names"]
+            if file["type"] == "collection"
+            else [file["collection_name"]] if file["collection_name"] else []
+        )
+
+        collection_names = set(collection_names).difference(extracted_collections)
+        if not collection_names:
+            log.debug(f"skipping {file} as it has already been extracted")
+            continue
+
+        if file["type"] == "text":
+            context = file["content"]
+            
+        if context:
+            relevant_contexts.append({**context, "source": file})
+
+        extracted_collections.extend(collection_names)
+
+    # contexts = []
+    # citations = []
+
+    # for context in relevant_contexts:
+    #     try:
+    #         if "documents" in context:
+    #             contexts.append(
+    #                 "\n\n".join(
+    #                     [text for text in context["documents"][0] if text is not None]
+    #                 )
+    #             )
+
+    #             if "metadatas" in context:
+    #                 citations.append(
+    #                     {
+    #                         "source": context["source"],
+    #                         "document": context["documents"][0],
+    #                         "metadata": context["metadatas"][0],
+    #                     }
+    #                 )
+    #     except Exception as e:
+    #         log.exception(e)
+
+    return extracted_collections,relevant_contexts
