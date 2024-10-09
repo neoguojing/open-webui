@@ -39,7 +39,7 @@ class LangchainApp:
         self.retrievers = retrievers
         if retrievers is not None:
             history_aware_retriever = create_history_aware_retriever(
-                self.llm, self.retriever, contextualize_q_template
+                self.llm, self.retrievers, contextualize_q_template
             )
             question_answer_chain = create_stuff_documents_chain(self.llm, doc_qa_template)
             self.runnable = create_retrieval_chain(history_aware_retriever, question_answer_chain)
@@ -137,11 +137,11 @@ class LangchainApp:
             # 使用 yield 生成提取的 content
             yield content
 
-if __name__ == "__main__":
-    app = LangchainApp()
-    stream_generator = app.ollama("hello")
-    # 遍历生成器
-    for response in stream_generator:
-        print(response)
-    # ret = app.embed_query("我爱北京天安门")
-    # print(ret)
+# if __name__ == "__main__":
+#     app = LangchainApp()
+#     stream_generator = app.ollama("hello")
+#     # 遍历生成器
+#     for response in stream_generator:
+#         print(response)
+#     # ret = app.embed_query("我爱北京天安门")
+#     # print(ret)

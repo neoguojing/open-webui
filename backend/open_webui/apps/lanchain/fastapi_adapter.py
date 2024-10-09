@@ -1,12 +1,13 @@
+import os
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from typing import Optional, Union,Any,Dict
-from langchain_app import LangchainApp
+from llm_app import LangchainApp
 from retriever import KnowledgeManager
 import logging
 log = logging.getLogger(__name__)
-log.setLevel("debug")
+log.setLevel(logging.DEBUG)
 # {
 # 	"model": "qwen2.5:14b",
 # 	"created_at": "2024-10-08T13:54:01.747642283Z",
@@ -34,7 +35,14 @@ log.setLevel("debug")
 # 	"done": false
 # }
 
-knowledgeBase = KnowledgeManager(data_path="./vector_store")
+OLLAMA_BASE_URLS = os.environ.get("OLLAMA_BASE_URLS", "")
+BASE_DIR = os.environ.get("BASE_DIR","./")
+BACKEND_DIR = os.environ.get("BACKEND_DIR","./")
+DATA_DIR = os.getenv("DATA_DIR", f"{BACKEND_DIR}/data")
+CHROMA_DATA_PATH = f"{DATA_DIR}/vector_db"
+LANGCHAIN_DB_PATH = f"sqlite:///{DATA_DIR}/langchain.db"
+
+knowledgeBase = KnowledgeManager(data_path=CHROMA_DATA_PATH)
 
 async def langchain_fastapi_wrapper(
     user_id: str,session_id: str, payload: Dict[str, Any], stream: bool = True, content_type="application/x-ndjson",topk=1
@@ -52,7 +60,7 @@ async def langchain_fastapi_wrapper(
             collections,contexts = get_rag_context(files)
             retriever = knowledgeBase.get_retriever(collections,topk)
         
-        app = LangchainApp(model=model,retrievers=retriever)
+        app = LangchainApp(model=model,retrievers=retriever,db_path=LANGCHAIN_DB_PATH)
 
         if payload["messages"]:
             input = get_last_user_message(payload["messages"])
@@ -76,16 +84,8 @@ async def langchain_fastapi_wrapper(
 
     except Exception as e:
         error_detail = "Open WebUI: Server Connection Error"
-        if r is not None:
-            try:
-                res = await r.json()
-                if "error" in res:
-                    error_detail = f"Ollama: {res['error']}"
-            except Exception:
-                error_detail = f"Ollama: {e}"
-
         raise HTTPException(
-            status_code=r.status if r else 500,
+            status_code=500,
             detail=error_detail,
         )
 
@@ -171,3 +171,14 @@ def get_rag_context(
     #         log.exception(e)
 
     return extracted_collections,relevant_contexts
+
+if __name__ == "__main__":
+    nb = KnowledgeManager(data_path="/win/open-webui/backend/data/vector_db")
+    retrievers = nb.get_retriever(collection_names="96019bcd-a464-4b37-a87b-c7c4e83aa1d0",k=1)
+    app = LangchainApp(retrievers=retrievers,db_path="sqlite:////win/open-webui/backend/data/langchain.db")
+    stream_generator = app.ollama("董事长报告书讲了什么？")
+    # 遍历生成器
+    for response in stream_generator:
+        print(response)
+    # ret = app.embed_query("我爱北京天安门")
+    # print(ret)

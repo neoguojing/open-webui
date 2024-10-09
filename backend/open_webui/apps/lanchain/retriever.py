@@ -175,8 +175,7 @@ class KnowledgeManager:
         if bm25:
             bm25_retriever = BM25Retriever.from_documents(documents=docs)
             bm25_retriever.k = k
-            retrievers=[bm25_retriever, chroma_retriever]
-
+            retrievers.append(bm25_retriever)
         retriever = EnsembleRetriever(
             retrievers=retrievers
         )

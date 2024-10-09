@@ -29,7 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from starlette.background import BackgroundTask
-from lanchain.fastapi_adapter import langchain_fastapi_wrapper
+from open_webui.apps.lanchain.fastapi_adapter import langchain_fastapi_wrapper
 
 
 from open_webui.utils.misc import (
@@ -778,7 +778,7 @@ async def generate_chat_completion(
     #     f"{url}/api/chat", json.dumps(payload), content_type="application/x-ndjson"
     # )
     return await langchain_fastapi_wrapper(
-        user_id=user.id,chat_id=chat_id,payload=payload,topk=RAG_TOP_K
+        user_id=user.id,session_id=chat_id,payload=payload,topk=RAG_TOP_K
     )
 
 
