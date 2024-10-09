@@ -28,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 from starlette.background import BackgroundTask
+from lanchain.fastapi_adapter import langchain_fastapi_wrapper
 
 
 from open_webui.utils.misc import (
@@ -734,10 +735,12 @@ async def generate_chat_completion(
 ):
     payload = {**form_data.model_dump(exclude_none=True)}
     log.debug(f"{payload = }")
-    if "metadata" in payload:
-        del payload["metadata"]
+
+    # if "metadata" in payload:
+    #     del payload["metadata"]
 
     model_id = form_data.model
+    chat_id = payload["metadata"]["chat_id"]
 
     if app.state.config.ENABLE_MODEL_FILTER:
         if user.role == "user" and model_id not in app.state.config.MODEL_FILTER_LIST:
@@ -770,8 +773,11 @@ async def generate_chat_completion(
     log.info(f"url: {url}")
     log.debug(payload)
 
-    return await post_streaming_url(
-        f"{url}/api/chat", json.dumps(payload), content_type="application/x-ndjson"
+    # return await post_streaming_url(
+    #     f"{url}/api/chat", json.dumps(payload), content_type="application/x-ndjson"
+    # )
+    return await langchain_fastapi_wrapper(
+        user_id=user.id,chat_id=chat_id,payload=payload
     )
 
 

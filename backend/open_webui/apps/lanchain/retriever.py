@@ -159,21 +159,30 @@ class KnowledgeManager:
 
         return compression_retriever
     
-    def get_retriever(self,collection_name,k: int,bm25: bool=False):
+    def get_retriever(self,collection_names,k: int,bm25: bool=False,filter_type=FilterType.LLM_FILTER):
         
-        chroma_retriever = self.collection_manager.get_vector_store(collection_name).as_retriever(
-            search_type="mmr",
-            search_kwargs={'k': k, 'lambda_mult': 0.25}
-        )
-        retriever = chroma_retriever
-
+        retrievers = []
+        docs = []
+        for collection_name in collection_names:
+            chroma_retriever = self.collection_manager.get_vector_store(collection_name).as_retriever(
+                search_type="mmr",
+                search_kwargs={'k': k, 'lambda_mult': 0.25}
+            )
+            retrievers.append(chroma_retriever)
+            if bm25:
+                docs.extend(self.collection_manager.get_documents(collection_name))
+            
         if bm25:
-            docs = self.collection_manager.get_documents(collection_name)
             bm25_retriever = BM25Retriever.from_documents(documents=docs)
             bm25_retriever.k = k
-            retriever = EnsembleRetriever(
-                retrievers=[bm25_retriever, chroma_retriever], weights=[0.5, 0.5]
-            )
+            retrievers=[bm25_retriever, chroma_retriever]
+
+        retriever = EnsembleRetriever(
+            retrievers=retrievers
+        )
+
+        if filter_type is not None:
+            retriever = self.get_compress_retriever(retriever,filter_type)
         return retriever
     
     
@@ -182,7 +191,6 @@ class KnowledgeManager:
         query: str,
         k: int = 3,
         bm25: bool = False,
-        rerank: bool = False,
         filter_type: FilterType = FilterType.LLM_FILTER
     ):
         collection_names = []
@@ -194,12 +202,9 @@ class KnowledgeManager:
             raise ValueError("Source must be a string or a list of strings.")
         
         try:
-            for name in collection_names:
-                retriever = self.get_retriever(name,k,bm25=bm25)
-                if rerank:
-                    retriever = self.get_compress_retriever(retriever,filter_type)
-                docs = retriever.invoke(query)
-                return docs
+            retriever = self.get_retriever(collection_names,k,bm25=bm25,filter_type=filter_type)
+            docs = retriever.invoke(query)
+            return docs
         except Exception as e:
             raise e
     
@@ -461,11 +466,95 @@ class SafeWebBaseLoader(WebBaseLoader):
                 log.error(f"Error loading {path}: {e}")
 
 
+def get_rag_context(
+    files,
+    messages,
+    embedding_function,
+    k,
+    reranking_function,
+    r,
+    hybrid_search,
+):
+    log.debug(f"files: {files} {messages} {embedding_function} {reranking_function}")
+    query = get_last_user_message(messages)
+
+    extracted_collections = []
+    relevant_contexts = []
+
+    for file in files:
+        context = None
+
+        collection_names = (
+            file["collection_names"]
+            if file["type"] == "collection"
+            else [file["collection_name"]] if file["collection_name"] else []
+        )
+
+        collection_names = set(collection_names).difference(extracted_collections)
+        if not collection_names:
+            log.debug(f"skipping {file} as it has already been extracted")
+            continue
+
+        try:
+            if file["type"] == "text":
+                context = file["content"]
+            else:
+                if hybrid_search:
+                    context = query_collection_with_hybrid_search(
+                        collection_names=collection_names,
+                        query=query,
+                        embedding_function=embedding_function,
+                        k=k,
+                        reranking_function=reranking_function,
+                        r=r,
+                    )
+                else:
+                    context = query_collection(
+                        collection_names=collection_names,
+                        query=query,
+                        embedding_function=embedding_function,
+                        k=k,
+                    )
+        except Exception as e:
+            log.exception(e)
+            context = None
+
+        if context:
+            relevant_contexts.append({**context, "source": file})
+
+        extracted_collections.extend(collection_names)
+
+    contexts = []
+    citations = []
+
+    for context in relevant_contexts:
+        try:
+            if "documents" in context:
+                contexts.append(
+                    "\n\n".join(
+                        [text for text in context["documents"][0] if text is not None]
+                    )
+                )
+
+                if "metadatas" in context:
+                    citations.append(
+                        {
+                            "source": context["source"],
+                            "document": context["documents"][0],
+                            "metadata": context["metadatas"][0],
+                        }
+                    )
+        except Exception as e:
+            log.exception(e)
+
+    return contexts, citations
+
+
 # if __name__ == '__main__':
 #     knowledgeBase = KnowledgeManager(data_path="./test/")
 #     # knowledgeBase.store(collection_name="test",source="/home/neo/Downloads/ir2023_ashare.docx",
 #     #                     source_type=SourceType.FILE,file_name='ir2023_ashare.docx')
-#     docs = knowledgeBase.query_doc("web","中国股市",k=2,bm25=False,rerank=True)
+#     docs = knowledgeBase.query_doc("web","中国股市",k=2,bm25=False)
 #     # print(docs)
 #     # emb = knowledgeBase.embedding.embed_query("wsewqeqe")
 #     # print(emb)

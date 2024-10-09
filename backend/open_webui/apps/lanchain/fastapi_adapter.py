@@ -31,13 +31,15 @@ from langchain_app import LangchainApp
 # 	"done": false
 # }
 
-app = LangchainApp()
 
-async def post_streaming_url(
+
+async def langchain_fastapi_wrapper(
     user_id: str,session_id: str, payload: Dict[str, Any], stream: bool = True, content_type="application/x-ndjson"
 ):
     input = None
     model = payload["model"]
+    app = LangchainApp(model=model)
+
     try:
         if payload["messages"]:
             input = payload["messages"][-1]["content"]

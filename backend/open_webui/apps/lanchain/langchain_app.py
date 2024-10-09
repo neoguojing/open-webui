@@ -67,7 +67,7 @@ class LangchainApp:
                     description="Unique identifier for the conversation.",
                     default="",
                     is_shared=True,
-                ),
+                )
             ],
         )
 
@@ -90,16 +90,9 @@ class LangchainApp:
             response = self.with_message_history.invoke(input_template,config)
             return response
     
-    def ollama(self,input: str,user_id="",conversation_id=""):
-        response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id)
-        for item in response:
-            # 从每个 item 中提取 'content'
-            content = item.content
-            isDone = False
-            finish_reason = None
-            if item.response_metadata:
-                isDone = True
-                finish_reason = item.response_metadata['finish_reason']
+    def ollama(self,input: str,user_id="",conversation_id="",stream=True):
+        response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id,stream=stream)
+        if not stream:
             utc_now = datetime.now(timezone.utc)
             utc_now_str = utc_now.isoformat() + 'Z'
             message_data = {
@@ -107,13 +100,34 @@ class LangchainApp:
                 "created_at": utc_now_str,
                 "message": {
                     "role": "assistant",
-                    "content": content
+                    "content": response.content
                 },
-                "done": isDone,
-                "done_reason": finish_reason
+                "done": True,
             }
-            
-            yield json.dumps(message_data) + "\n"  # 添加换行符
+            return message_data
+        else:
+            for item in response:
+                # 从每个 item 中提取 'content'
+                content = item.content
+                is_done = False
+                finish_reason = None
+                if item.response_metadata:
+                    is_done = True
+                    finish_reason = item.response_metadata['finish_reason']
+                utc_now = datetime.now(timezone.utc)
+                utc_now_str = utc_now.isoformat() + 'Z'
+                message_data = {
+                    "model": self.model,
+                    "created_at": utc_now_str,
+                    "message": {
+                        "role": "assistant",
+                        "content": content
+                    },
+                    "done": is_done,
+                    "done_reason": finish_reason
+                }
+                
+                yield json.dumps(message_data) + "\n"  # 添加换行符
     
     def __call__(self,input: str,user_id="",conversation_id=""):
         response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id)
