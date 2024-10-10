@@ -10,6 +10,8 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_ollama import OllamaEmbeddings
 from langchain_ollama.llms import OllamaLLM
+from langchain_core.messages.ai import AIMessage,AIMessageChunk
+from langchain_core.runnables.utils import AddableDict
 from prompt import default_template,contextualize_q_template,doc_qa_template
 import json
 from datetime import datetime,timezone
@@ -44,13 +46,14 @@ class LangchainApp:
             question_answer_chain = create_stuff_documents_chain(self.llm, doc_qa_template)
             self.runnable = create_retrieval_chain(history_aware_retriever, question_answer_chain)
         else:
-            self.runnable = default_template | self.llm
+            self.runnable = default_template | self.llm 
 
         self.with_message_history = RunnableWithMessageHistory(
             self.runnable ,
             self.get_session_history,
             input_messages_key="input",
             history_messages_key="chat_history",
+            output_messages_key="answer",
             history_factory_config=[
                 ConfigurableFieldSpec(
                     id="user_id",
@@ -92,28 +95,44 @@ class LangchainApp:
     
     def ollama(self,input: str,user_id="",conversation_id="",stream=True):
         response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id,stream=stream)
+        content = None
         if not stream:
+            print(response,type(response))
             utc_now = datetime.now(timezone.utc)
             utc_now_str = utc_now.isoformat() + 'Z'
+            if isinstance(response,AIMessage):
+                content = response.content
+            elif isinstance(response,dict):
+                content = response['answer']
+                
+            print("----------",content)
             message_data = {
                 "model": self.model,
                 "created_at": utc_now_str,
                 "message": {
                     "role": "assistant",
-                    "content": response.content
+                    "content": content
                 },
                 "done": True,
             }
             return message_data
         else:
+            is_done = False
+            finish_reason = None
             for item in response:
+                print(item,type(item))
                 # 从每个 item 中提取 'content'
-                content = item.content
-                is_done = False
-                finish_reason = None
-                if item.response_metadata:
-                    is_done = True
-                    finish_reason = item.response_metadata['finish_reason']
+                if isinstance(item,AIMessageChunk):
+                    content = item.content
+                    if item.response_metadata:
+                        is_done = True
+                        finish_reason = item.response_metadata['finish_reason']
+                elif isinstance(item,AddableDict):
+                    content = item.get('answer')
+                    if content is None:
+                        is_done = True
+                
+                
                 utc_now = datetime.now(timezone.utc)
                 utc_now_str = utc_now.isoformat() + 'Z'
                 message_data = {

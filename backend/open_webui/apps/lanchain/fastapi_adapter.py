@@ -174,10 +174,12 @@ def get_rag_context(
 
 if __name__ == "__main__":
     nb = KnowledgeManager(data_path="/win/open-webui/backend/data/vector_db")
-    nb.store(collection_name="aaaaa",source="",file_name="")
+    # nb.store(collection_name="aaaaa",source="/home/neo/Downloads/ir2023_ashare.docx",file_name="ir2023_ashare.docx")
     retrievers = nb.get_retriever(collection_names="aaaaa",k=1)
+    # retrievers = None
     app = LangchainApp(retrievers=retrievers,db_path="sqlite:////win/open-webui/backend/data/langchain.db")
-    stream_generator = app.ollama("董事长报告书讲了什么？")
+    stream_generator = app.ollama("董事长报告书讲了什么？",stream=True)
+    print(stream_generator)
     # 遍历生成器
     for response in stream_generator:
         print(response)

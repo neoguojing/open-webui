@@ -125,7 +125,7 @@ class KnowledgeManager:
                 doc.page_content = doc.page_content.replace("\t", "")
             print("loader file count:",len(raw_docs))
             docs = self.split_documents(raw_docs)
-            print("splited documents count:",docs)
+            print("splited documents count:",len(docs))
             store = self.collection_manager.get_vector_store(collection_name)
             store.add_documents(docs)
             print("add documents done------")
@@ -161,6 +161,9 @@ class KnowledgeManager:
     
     def get_retriever(self,collection_names,k: int,bm25: bool=False,filter_type=FilterType.LLM_FILTER):
         
+        if isinstance(collection_names, str):
+            collection_names = [collection_names]  # 如果是字符串，转为列表
+            
         retrievers = []
         docs = []
         for collection_name in collection_names:
