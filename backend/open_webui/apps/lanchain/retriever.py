@@ -85,7 +85,7 @@ class KnowledgeManager:
 
         self.collection_manager = CollectionManager(data_path)
 
-    def store(self,collection_name: str, source: Union[str, List[str]], source_type: SourceType,
+    def store(self,collection_name: str, source: Union[str, List[str]], source_type: SourceType=SourceType.FILE,
                file_name:str = None,content_type: str = None):
         """
         存储 URL 或文件，支持单个或多个 source。

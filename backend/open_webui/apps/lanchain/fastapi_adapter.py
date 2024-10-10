@@ -174,7 +174,8 @@ def get_rag_context(
 
 if __name__ == "__main__":
     nb = KnowledgeManager(data_path="/win/open-webui/backend/data/vector_db")
-    retrievers = nb.get_retriever(collection_names="96019bcd-a464-4b37-a87b-c7c4e83aa1d0",k=1)
+    nb.store(collection_name="aaaaa",source="",file_name="")
+    retrievers = nb.get_retriever(collection_names="aaaaa",k=1)
     app = LangchainApp(retrievers=retrievers,db_path="sqlite:////win/open-webui/backend/data/langchain.db")
     stream_generator = app.ollama("董事长报告书讲了什么？")
     # 遍历生成器
