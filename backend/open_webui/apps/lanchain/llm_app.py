@@ -53,7 +53,6 @@ class LangchainApp:
             self.get_session_history,
             input_messages_key="input",
             history_messages_key="chat_history",
-            output_messages_key="answer",
             history_factory_config=[
                 ConfigurableFieldSpec(
                     id="user_id",
@@ -77,50 +76,66 @@ class LangchainApp:
     def get_session_history(self,user_id: str, conversation_id: str):
         return SQLChatMessageHistory(f"{user_id}--{conversation_id}", self.db_path)
     
-    def chat(self,input: str,language="chinese",user_id="",conversation_id="",stream=True):
+    def stream(self,input: str,language="chinese",user_id="",conversation_id=""):
         if conversation_id == "":
             import uuid
             conversation_id = str(uuid.uuid4())
 
         input_template = {"language": language, "input": input}
         config = {"configurable": {"user_id": user_id, "conversation_id": conversation_id}}
+        
+        response = self.with_message_history.stream(input_template,config)
+        return self._process_stream(response)
+        
+        
+    def invoke(self,input: str,language="chinese",user_id="",conversation_id=""):
+        if conversation_id == "":
+            import uuid
+            conversation_id = str(uuid.uuid4())
 
-        response = None
-        if stream:
-            response = self.with_message_history.stream(input_template,config)
-            return self._process_stream(response)
-        else:
-            response = self.with_message_history.invoke(input_template,config)
-            if isinstance(response,dict):
-                content = response['answer']
-                response = AIMessage(content=content)
-            return response
+        input_template = {"language": language, "input": input}
+        config = {"configurable": {"user_id": user_id, "conversation_id": conversation_id}}
+        
+        response = self.with_message_history.invoke(input_template,config)
+        if isinstance(response,dict):
+            content = response['answer']
+            response = AIMessage(content=content)
+        return response
     
     def _process_stream(self, response):
         for item in response:
-            # 对迭代数据进行格式转换或处理
-            # 例如，假设每个迭代项是一个字典，我们将其包装为 AIMessage 对象
-            processed_item = item
-            if isinstance(item, AddableDict):
-                content = item.get('answer')
-                processed_item = AIMessage(content=content)
-                if content is None:
-                    processed_item.response_metadata = {'finish_reason': "stop"}
+            if item is not None:
+                if isinstance(item, AddableDict):
+                    content = item.get('answer')
+                    context = item.get('context')
+                    if context is not None:
+                        print("context:", context)
+                    if content is not None:
+                        processed_item = AIMessage(content=content)
+                        if content == "":
+                            processed_item.response_metadata = {'finish_reason': "stop"}
+                        yield processed_item  # Yield only if processed_item is valid
+                elif isinstance(item, AIMessage):
+                    processed_item = item
+                    yield processed_item
 
-            # 使用 yield 将修改后的数据逐个返回
-            yield processed_item
-
-    def ollama(self,input: str,user_id="",conversation_id="",stream=True):
-        response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id,stream=stream)
+    def ollama(self,input: str,user_id="",conversation_id=""):
+        response = self.stream(input=input,user_id=user_id,conversation_id=conversation_id)
         content = None
-        if not stream:
-            print(response,type(response))
+        message_data = None
+ 
+        is_done = False
+        finish_reason = None
+        for item in response:
+            # print(item,type(item))
+            # 从每个 item 中提取 'content'
+            content = item.content
+            if item.response_metadata:
+                is_done = True
+                finish_reason = item.response_metadata['finish_reason']
+            
             utc_now = datetime.now(timezone.utc)
             utc_now_str = utc_now.isoformat() + 'Z'
-            content = response.content
-
-                
-            print("----------",content)
             message_data = {
                 "model": self.model,
                 "created_at": utc_now_str,
@@ -128,42 +143,15 @@ class LangchainApp:
                     "role": "assistant",
                     "content": content
                 },
-                "done": True,
+                "done": is_done,
+                "done_reason": finish_reason
             }
-            return message_data
-        else:
-            is_done = False
-            finish_reason = None
-            for item in response:
-                print(item,type(item))
-                # 从每个 item 中提取 'content'
-                content = item.content
-                if item.response_metadata:
-                    is_done = True
-                    finish_reason = item.response_metadata['finish_reason']
-                
-                utc_now = datetime.now(timezone.utc)
-                utc_now_str = utc_now.isoformat() + 'Z'
-                message_data = {
-                    "model": self.model,
-                    "created_at": utc_now_str,
-                    "message": {
-                        "role": "assistant",
-                        "content": content
-                    },
-                    "done": is_done,
-                    "done_reason": finish_reason
-                }
-                
-                yield json.dumps(message_data) + "\n"  # 添加换行符
+            
+            yield json.dumps(message_data) + "\n"  # 添加换行符
     
     def __call__(self,input: str,user_id="",conversation_id=""):
-        response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id)
-        for item in response:
-            # 从每个 item 中提取 'content'
-            content = item.content
-            # 使用 yield 生成提取的 content
-            yield content
+        response = self.invoke(input=input,user_id=user_id,conversation_id=conversation_id)
+        return response
 
 # if __name__ == "__main__":
 #     app = LangchainApp()
