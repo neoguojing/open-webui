@@ -88,11 +88,28 @@ class LangchainApp:
         response = None
         if stream:
             response = self.with_message_history.stream(input_template,config)
-            return response
+            return self._process_stream(response)
         else:
             response = self.with_message_history.invoke(input_template,config)
+            if isinstance(response,dict):
+                content = response['answer']
+                response = AIMessage(content=content)
             return response
     
+    def _process_stream(self, response):
+        for item in response:
+            # 对迭代数据进行格式转换或处理
+            # 例如，假设每个迭代项是一个字典，我们将其包装为 AIMessage 对象
+            processed_item = item
+            if isinstance(item, AddableDict):
+                content = item.get('answer')
+                processed_item = AIMessage(content=content)
+                if content is None:
+                    processed_item.response_metadata = {'finish_reason': "stop"}
+
+            # 使用 yield 将修改后的数据逐个返回
+            yield processed_item
+
     def ollama(self,input: str,user_id="",conversation_id="",stream=True):
         response = self.chat(input=input,user_id=user_id,conversation_id=conversation_id,stream=stream)
         content = None
@@ -100,10 +117,8 @@ class LangchainApp:
             print(response,type(response))
             utc_now = datetime.now(timezone.utc)
             utc_now_str = utc_now.isoformat() + 'Z'
-            if isinstance(response,AIMessage):
-                content = response.content
-            elif isinstance(response,dict):
-                content = response['answer']
+            content = response.content
+
                 
             print("----------",content)
             message_data = {
@@ -122,16 +137,10 @@ class LangchainApp:
             for item in response:
                 print(item,type(item))
                 # 从每个 item 中提取 'content'
-                if isinstance(item,AIMessageChunk):
-                    content = item.content
-                    if item.response_metadata:
-                        is_done = True
-                        finish_reason = item.response_metadata['finish_reason']
-                elif isinstance(item,AddableDict):
-                    content = item.get('answer')
-                    if content is None:
-                        is_done = True
-                
+                content = item.content
+                if item.response_metadata:
+                    is_done = True
+                    finish_reason = item.response_metadata['finish_reason']
                 
                 utc_now = datetime.now(timezone.utc)
                 utc_now_str = utc_now.isoformat() + 'Z'
