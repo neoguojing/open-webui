@@ -30,7 +30,7 @@ import urllib.parse
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline,EmbeddingsFilter,LLMListwiseRerank,LLMChainFilter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
 from vectore_store import CollectionManager
-from prompt import DEFAULT_SEARCH_PROMPT
+from prompt import DEFAULT_SEARCH_PROMPT,rag_filter_template
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.document_loaders import AsyncChromiumLoader,AsyncHtmlLoader
@@ -136,10 +136,11 @@ class KnowledgeManager:
             log.exception(e)
             return False
 
-    def get_compress_retriever(self,retriever,filter_type:FilterType=FilterType.LLM_FILTER):
+    def get_compress_retriever(self,retriever,filter_type:FilterType=FilterType.RELEVANT_FILTER):
         relevant_filter = None
         if filter_type == FilterType.LLM_FILTER:
-            relevant_filter = LLMChainFilter.from_llm(self.llm)
+            
+            relevant_filter = LLMChainFilter.from_llm(self.llm,prompt=rag_filter_template)
         
         elif filter_type == FilterType.LLM_RERANK:
             relevant_filter = LLMListwiseRerank.from_llm(self.llm, top_n=1)
@@ -393,7 +394,7 @@ class KnowledgeManager:
         return docs
         
     def web_search(self,query,collection_name="web",region="cn-zh",time="d",max_results=2):
-        questions = self.search_chain.invoke({"question":query})
+        questions = self.search_chain.invoke({"input":query})
         print("questions:",questions)
         
         search = DuckDuckGoSearchAPIWrapper(region=region, time=time, max_results=max_results,source="news")

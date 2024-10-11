@@ -1,5 +1,6 @@
 from langchain.prompts import MessagesPlaceholder,ChatPromptTemplate,PromptTemplate
 from langchain_core.messages import HumanMessage, BaseMessage,SystemMessage,AIMessage
+from langchain.output_parsers.boolean import BooleanOutputParser
 
 
 english_traslate_template = ChatPromptTemplate.from_messages(
@@ -81,9 +82,25 @@ doc_qa_template = ChatPromptTemplate.from_messages(
 )
 
 DEFAULT_SEARCH_PROMPT = PromptTemplate(
-    input_variables=["question"],
+    input_variables=["input"],
     template="""You are an assistant tasked with improving Google search \
 results. Generate THREE Google search queries that are similar to \
 this question. The output should be a numbered list of questions and each \
-should have a question mark at the end: {question}""",
+should have a question mark at the end: {input}""",
+)
+
+
+rag_filter_prompt = """Given the following question and context, return YES if the context is relevant to the question and NO if it isn't.
+
+> Question: {question}
+> Context:
+>>>
+{context}
+>>>
+> Relevant :"""
+
+rag_filter_template = PromptTemplate(
+    template=rag_filter_prompt,
+    input_variables=["question", "context"],
+    output_parser=BooleanOutputParser(),
 )

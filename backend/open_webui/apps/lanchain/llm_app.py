@@ -15,6 +15,9 @@ from langchain_core.runnables.utils import AddableDict
 from prompt import default_template,contextualize_q_template,doc_qa_template
 import json
 from datetime import datetime,timezone
+from langchain.globals import set_debug
+
+set_debug(True)
 
 class LangchainApp:
     
