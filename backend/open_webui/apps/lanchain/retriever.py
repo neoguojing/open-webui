@@ -194,7 +194,8 @@ class KnowledgeManager:
         query: str,
         k: int = 3,
         bm25: bool = False,
-        filter_type: FilterType = FilterType.LLM_FILTER
+        filter_type: FilterType = FilterType.LLM_FILTER,
+        to_dict: bool = False
     ):
         collection_names = []
         if isinstance(collection_name, str):
@@ -207,6 +208,12 @@ class KnowledgeManager:
         try:
             retriever = self.get_retriever(collection_names,k,bm25=bm25,filter_type=filter_type)
             docs = retriever.invoke(query)
+            if to_dict:
+                docs = {
+                    "distances": [[d.metadata.get("score") for d in docs]],
+                    "documents": [[d.page_content for d in docs]],
+                    "metadatas": [[d.metadata for d in docs]],
+                }
             return docs
         except Exception as e:
             raise e

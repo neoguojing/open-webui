@@ -625,24 +625,28 @@ def query_doc_handler(
     user=Depends(get_verified_user),
 ):
     try:
-        if app.state.config.ENABLE_RAG_HYBRID_SEARCH:
-            return query_doc_with_hybrid_search(
-                collection_name=form_data.collection_name,
-                query=form_data.query,
-                embedding_function=app.state.EMBEDDING_FUNCTION,
-                k=form_data.k if form_data.k else app.state.config.TOP_K,
-                reranking_function=app.state.sentence_transformer_rf,
-                r=(
-                    form_data.r if form_data.r else app.state.config.RELEVANCE_THRESHOLD
-                ),
-            )
-        else:
-            return query_doc(
-                collection_name=form_data.collection_name,
-                query=form_data.query,
-                embedding_function=app.state.EMBEDDING_FUNCTION,
-                k=form_data.k if form_data.k else app.state.config.TOP_K,
-            )
+
+        return knowledgeBase.query_doc(collection_name=form_data.collection_name,query=form_data.query,
+                                k=form_data.k if form_data.k else app.state.config.TOP_K,to_dict=True)
+    
+        # if app.state.config.ENABLE_RAG_HYBRID_SEARCH:
+        #     return query_doc_with_hybrid_search(
+        #         collection_name=form_data.collection_name,
+        #         query=form_data.query,
+        #         embedding_function=app.state.EMBEDDING_FUNCTION,
+        #         k=form_data.k if form_data.k else app.state.config.TOP_K,
+        #         reranking_function=app.state.sentence_transformer_rf,
+        #         r=(
+        #             form_data.r if form_data.r else app.state.config.RELEVANCE_THRESHOLD
+        #         ),
+        #     )
+        # else:
+        #     return query_doc(
+        #         collection_name=form_data.collection_name,
+        #         query=form_data.query,
+        #         embedding_function=app.state.EMBEDDING_FUNCTION,
+        #         k=form_data.k if form_data.k else app.state.config.TOP_K,
+        #     )
     except Exception as e:
         log.exception(e)
         raise HTTPException(
@@ -665,24 +669,26 @@ def query_collection_handler(
     user=Depends(get_verified_user),
 ):
     try:
-        if app.state.config.ENABLE_RAG_HYBRID_SEARCH:
-            return query_collection_with_hybrid_search(
-                collection_names=form_data.collection_names,
-                query=form_data.query,
-                embedding_function=app.state.EMBEDDING_FUNCTION,
-                k=form_data.k if form_data.k else app.state.config.TOP_K,
-                reranking_function=app.state.sentence_transformer_rf,
-                r=(
-                    form_data.r if form_data.r else app.state.config.RELEVANCE_THRESHOLD
-                ),
-            )
-        else:
-            return query_collection(
-                collection_names=form_data.collection_names,
-                query=form_data.query,
-                embedding_function=app.state.EMBEDDING_FUNCTION,
-                k=form_data.k if form_data.k else app.state.config.TOP_K,
-            )
+        return knowledgeBase.query_doc(collection_name=form_data.collection_names,query=form_data.query,
+                                k=form_data.k if form_data.k else app.state.config.TOP_K,to_dict=True)
+        # if app.state.config.ENABLE_RAG_HYBRID_SEARCH:
+        #     return query_collection_with_hybrid_search(
+        #         collection_names=form_data.collection_names,
+        #         query=form_data.query,
+        #         embedding_function=app.state.EMBEDDING_FUNCTION,
+        #         k=form_data.k if form_data.k else app.state.config.TOP_K,
+        #         reranking_function=app.state.sentence_transformer_rf,
+        #         r=(
+        #             form_data.r if form_data.r else app.state.config.RELEVANCE_THRESHOLD
+        #         ),
+        #     )
+        # else:
+        #     return query_collection(
+        #         collection_names=form_data.collection_names,
+        #         query=form_data.query,
+        #         embedding_function=app.state.EMBEDDING_FUNCTION,
+        #         k=form_data.k if form_data.k else app.state.config.TOP_K,
+        #     )
 
     except Exception as e:
         log.exception(e)
