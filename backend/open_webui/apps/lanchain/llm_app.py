@@ -43,10 +43,33 @@ class LangchainApp:
         # self.llm  = OllamaLLM(model=model,base_url="http://localhost:11434")
         self.retrievers = retrievers
         if retrievers is not None:
+            # retrieve_documents: RetrieverOutputLike = RunnableBranch(
+            #     (
+            #         # Both empty string and empty list evaluate to False
+            #         lambda x: not x.get("chat_history", False),
+            #         # If no chat history, then we just pass input to retriever
+            #         (lambda x: x["input"]) | retriever,
+            #     ),
+            #     # If chat history, then we pass inputs to LLM chain, then to retriever
+            #     prompt | llm | StrOutputParser() | retriever,
+            # ).with_config(run_name="chat_retriever_chain")
             history_aware_retriever = create_history_aware_retriever(
                 self.llm, self.retrievers, contextualize_q_template
             )
+            # (
+            #     RunnablePassthrough.assign(**{"context": format_docs}).with_config(
+            #         run_name="format_inputs"
+            #     )
+            #     | prompt
+            #     | llm
+            #     | _output_parser
+            # ).with_config(run_name="stuff_documents_chain")
             question_answer_chain = create_stuff_documents_chain(self.llm, doc_qa_template)
+            # retrieval_chain = (
+            #     RunnablePassthrough.assign(
+            #         context=retrieval_docs.with_config(run_name="retrieve_documents"),
+            #     ).assign(answer=combine_docs_chain)
+            # ).with_config(run_name="retrieval_chain")
             self.runnable = create_retrieval_chain(history_aware_retriever, question_answer_chain)
         else:
             self.runnable = default_template | self.llm 
