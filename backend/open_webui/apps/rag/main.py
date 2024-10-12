@@ -714,7 +714,7 @@ def store_youtube_video(form_data: UrlForm, user=Depends(get_verified_user)):
             collection_name = calculate_sha256_string(form_data.url)[:63]
 
         # store_data_in_vector_db(data, collection_name, overwrite=True)
-        result,known_type = knowledgeBase.store(collection_name,souorce=form_data.url,source_type=SourceType.YOUTUBE)
+        result,known_type = knowledgeBase.store(collection_name,source=form_data.url,source_type=SourceType.YOUTUBE)
         if result:
             return {
                 "status": True,
@@ -744,7 +744,7 @@ def store_web(form_data: UrlForm, user=Depends(get_verified_user)):
             collection_name = calculate_sha256_string(form_data.url)[:63]
 
         # store_data_in_vector_db(data, collection_name, overwrite=True)
-        result,known_type = knowledgeBase.store(collection_name,souorce=form_data.url,source_type=SourceType.WEB)
+        result,known_type = knowledgeBase.store(collection_name,source=form_data.url,source_type=SourceType.WEB)
         if result:
             return {
                 "status": True,
@@ -1229,7 +1229,7 @@ def store_doc(
 
         try:
             # result = store_data_in_vector_db(data, collection_name)
-            result,known_type = knowledgeBase.store(collection_name,souorce=file_path,
+            result,known_type = knowledgeBase.store(collection_name,source=file_path,
                                                     file_name=filename,content_type=file.content_type)
             if result:
                 return {
@@ -1284,7 +1284,7 @@ def process_doc(
         # data = loader.load()
 
         try:
-            result,known_type = knowledgeBase.store(collection_name,souorce=file_path,
+            result,known_type = knowledgeBase.store(collection_name,source=file_path,
                                                     file_name=file.filename,content_type=file.meta.get("content_type"))
             # result = store_data_in_vector_db(
             #     data,

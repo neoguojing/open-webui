@@ -12,7 +12,7 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.messages.ai import AIMessage,AIMessageChunk
 from langchain_core.runnables.utils import AddableDict
-from prompt import default_template,contextualize_q_template,doc_qa_template
+from open_webui.apps.lanchain.prompt import default_template,contextualize_q_template,doc_qa_template
 import json
 from datetime import datetime,timezone
 from langchain.globals import set_debug

@@ -29,8 +29,8 @@ import socket
 import urllib.parse
 from langchain.retrievers.document_compressors import DocumentCompressorPipeline,EmbeddingsFilter,LLMListwiseRerank,LLMChainFilter
 from langchain_community.document_transformers import EmbeddingsRedundantFilter
-from vectore_store import CollectionManager
-from prompt import DEFAULT_SEARCH_PROMPT,rag_filter_template
+from open_webui.apps.lanchain.vectore_store import CollectionManager
+from open_webui.apps.lanchain.prompt import DEFAULT_SEARCH_PROMPT,rag_filter_template
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.document_loaders import AsyncChromiumLoader,AsyncHtmlLoader

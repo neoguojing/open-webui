@@ -3,8 +3,8 @@ from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from typing import Optional, Union,Any,Dict
-from llm_app import LangchainApp
-from retriever import KnowledgeManager
+from open_webui.apps.lanchain.llm_app import LangchainApp
+from open_webui.apps.lanchain.retriever import KnowledgeManager
 import logging
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -72,7 +72,7 @@ async def langchain_fastapi_wrapper(
             if content_type:
                 headers["Content-Type"] = content_type
             return StreamingResponse(
-                app.ollama(input,user_id=user_id,conversation_id=session_id,stream=stream),
+                app.ollama(input,user_id=user_id,conversation_id=session_id),
                 status_code=200,
                 headers=headers,
                 background=BackgroundTask(
@@ -80,12 +80,13 @@ async def langchain_fastapi_wrapper(
                 ),
             )
         else:
-            res = app.ollama(input,user_id=user_id,conversation_id=session_id,stream=stream)
+            res = app(input,user_id=user_id,conversation_id=session_id)
             await cleanup_response()
             return res
 
     except Exception as e:
-        error_detail = "Open WebUI: Server Connection Error"
+        error_detail = f"Open WebUI: Server Error:{e}"
+        print()
         raise HTTPException(
             status_code=500,
             detail=error_detail,
@@ -174,18 +175,18 @@ def get_rag_context(
 
     return extracted_collections,relevant_contexts
 
-if __name__ == "__main__":
-    nb = KnowledgeManager(data_path="/win/open-webui/backend/data/vector_db")
-    # nb.store(collection_name="aaaaa",source="/home/neo/Downloads/ir2023_ashare.docx",file_name="ir2023_ashare.docx")
-    retrievers = nb.get_retriever(collection_names="aaaaa",k=1)
-    # retrievers = None
-    app = LangchainApp(retrievers=retrievers,db_path="sqlite:////win/open-webui/backend/data/langchain.db")
+# if __name__ == "__main__":
+#     nb = KnowledgeManager(data_path="/win/open-webui/backend/data/vector_db")
+#     # nb.store(collection_name="aaaaa",source="/home/neo/Downloads/ir2023_ashare.docx",file_name="ir2023_ashare.docx")
+#     retrievers = nb.get_retriever(collection_names="aaaaa",k=1)
+#     # retrievers = None
+#     app = LangchainApp(retrievers=retrievers,db_path="sqlite:////win/open-webui/backend/data/langchain.db")
     
-    # resp = app("董事长报告书讲了什么？")
-    # print("invoke:",resp)
-    stream_generator = app.ollama("可持续发展")
-    # 遍历生成器
-    for response in stream_generator:
-        print("iter:",response)
-    # docs = nb.query_doc("aaaaa","董事长报告书")
-    # print(docs)
+#     # resp = app("董事长报告书讲了什么？")
+#     # print("invoke:",resp)
+#     stream_generator = app.ollama("可持续发展")
+#     # 遍历生成器
+#     for response in stream_generator:
+#         print("iter:",response)
+#     # docs = nb.query_doc("aaaaa","董事长报告书")
+#     # print(docs)
