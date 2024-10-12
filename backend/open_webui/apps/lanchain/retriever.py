@@ -129,14 +129,14 @@ class KnowledgeManager:
             store = self.collection_manager.get_vector_store(collection_name)
             store.add_documents(docs)
             print("add documents done------")
-            return collection_name
+            return collection_name,known_type
         except Exception as e:
             if e.__class__.__name__ == "UniqueConstraintError":
                 return True
             log.exception(e)
-            return False
+            return False,known_type
 
-    def get_compress_retriever(self,retriever,filter_type:FilterType=FilterType.RELEVANT_FILTER):
+    def get_compress_retriever(self,retriever,filter_type:FilterType):
         relevant_filter = None
         if filter_type == FilterType.LLM_FILTER:
             
@@ -421,7 +421,7 @@ class KnowledgeManager:
         urls = set(urls_to_look)
         
         # docs = self.web_parser(urls,url_meta_map,collection_name)
-        return self.store(collection_name,list(urls),SourceType.WEB)
+        return self.store(collection_name,list(urls),SourceType.WEB),urls
          
 
     def split_documents(self, documents,chunk_size=1024,chunk_overlap=50):

@@ -42,6 +42,8 @@ DATA_DIR = os.getenv("DATA_DIR", f"{BACKEND_DIR}/data")
 CHROMA_DATA_PATH = f"{DATA_DIR}/vector_db"
 LANGCHAIN_DB_PATH = f"sqlite:///{DATA_DIR}/langchain.db"
 
+print("CHROMA_DATA_PATH:",CHROMA_DATA_PATH)
+print("LANGCHAIN_DB_PATH:",LANGCHAIN_DB_PATH)
 knowledgeBase = KnowledgeManager(data_path=CHROMA_DATA_PATH)
 
 async def langchain_fastapi_wrapper(

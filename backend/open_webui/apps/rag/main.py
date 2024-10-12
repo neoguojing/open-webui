@@ -113,7 +113,8 @@ from open_webui.utils.misc import (
     sanitize_filename,
 )
 from open_webui.utils.utils import get_admin_user, get_verified_user
-
+from open_webui.apps.lanchain.fastapi_adapter import knowledgeBase
+from open_webui.apps.lanchain.retriever import SourceType
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["RAG"])
 
@@ -694,24 +695,26 @@ def query_collection_handler(
 @app.post("/youtube")
 def store_youtube_video(form_data: UrlForm, user=Depends(get_verified_user)):
     try:
-        loader = YoutubeLoader.from_youtube_url(
-            form_data.url,
-            add_video_info=True,
-            language=app.state.config.YOUTUBE_LOADER_LANGUAGE,
-            translation=app.state.YOUTUBE_LOADER_TRANSLATION,
-        )
-        data = loader.load()
+        # loader = YoutubeLoader.from_youtube_url(
+        #     form_data.url,
+        #     add_video_info=True,
+        #     language=app.state.config.YOUTUBE_LOADER_LANGUAGE,
+        #     translation=app.state.YOUTUBE_LOADER_TRANSLATION,
+        # )
+        # data = loader.load()
 
         collection_name = form_data.collection_name
         if collection_name == "":
             collection_name = calculate_sha256_string(form_data.url)[:63]
 
-        store_data_in_vector_db(data, collection_name, overwrite=True)
-        return {
-            "status": True,
-            "collection_name": collection_name,
-            "filename": form_data.url,
-        }
+        # store_data_in_vector_db(data, collection_name, overwrite=True)
+        result,known_type = knowledgeBase.store(collection_name,souorce=form_data.url,source_type=SourceType.YOUTUBE)
+        if result:
+            return {
+                "status": True,
+                "collection_name": collection_name,
+                "filename": form_data.url,
+            }
     except Exception as e:
         log.exception(e)
         raise HTTPException(
@@ -724,22 +727,24 @@ def store_youtube_video(form_data: UrlForm, user=Depends(get_verified_user)):
 def store_web(form_data: UrlForm, user=Depends(get_verified_user)):
     # "https://www.gutenberg.org/files/1727/1727-h/1727-h.htm"
     try:
-        loader = get_web_loader(
-            form_data.url,
-            verify_ssl=app.state.config.ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION,
-        )
-        data = loader.load()
+        # loader = get_web_loader(
+        #     form_data.url,
+        #     verify_ssl=app.state.config.ENABLE_RAG_WEB_LOADER_SSL_VERIFICATION,
+        # )
+        # data = loader.load()
 
         collection_name = form_data.collection_name
         if collection_name == "":
             collection_name = calculate_sha256_string(form_data.url)[:63]
 
-        store_data_in_vector_db(data, collection_name, overwrite=True)
-        return {
-            "status": True,
-            "collection_name": collection_name,
-            "filename": form_data.url,
-        }
+        # store_data_in_vector_db(data, collection_name, overwrite=True)
+        result,known_type = knowledgeBase.store(collection_name,souorce=form_data.url,source_type=SourceType.WEB)
+        if result:
+            return {
+                "status": True,
+                "collection_name": collection_name,
+                "filename": form_data.url,
+            }
     except Exception as e:
         log.exception(e)
         raise HTTPException(
@@ -912,37 +917,41 @@ def search_web(engine: str, query: str) -> list[SearchResult]:
 
 @app.post("/web/search")
 def store_web_search(form_data: SearchForm, user=Depends(get_verified_user)):
-    try:
-        logging.info(
+    logging.info(
             f"trying to web search with {app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query}"
         )
-        web_results = search_web(
-            app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query
-        )
-    except Exception as e:
-        log.exception(e)
+    
+    # try:
+        
+    #     web_results = search_web(
+    #         app.state.config.RAG_WEB_SEARCH_ENGINE, form_data.query
+    #     )
+    # except Exception as e:
+    #     log.exception(e)
 
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ERROR_MESSAGES.WEB_SEARCH_ERROR(e),
-        )
+    #     print(e)
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail=ERROR_MESSAGES.WEB_SEARCH_ERROR(e),
+    #     )
 
     try:
-        urls = [result.link for result in web_results]
-        loader = get_web_loader(urls)
-        data = loader.load()
+        # urls = [result.link for result in web_results]
+        # loader = get_web_loader(urls)
+        # data = loader.load()
 
         collection_name = form_data.collection_name
         if collection_name == "":
             collection_name = calculate_sha256_string(form_data.query)[:63]
 
-        store_data_in_vector_db(data, collection_name, overwrite=True)
-        return {
-            "status": True,
-            "collection_name": collection_name,
-            "filenames": urls,
-        }
+        # store_data_in_vector_db(data, collection_name, overwrite=True)
+        result,known_type,urls = knowledgeBase.web_search(form_data.query,collection_name)
+        if result:
+            return {
+                "status": True,
+                "collection_name": collection_name,
+                "filenames": urls,
+            }
     except Exception as e:
         log.exception(e)
         raise HTTPException(
@@ -1209,12 +1218,13 @@ def store_doc(
             collection_name = calculate_sha256(f)[:63]
         f.close()
 
-        loader, known_type = get_loader(filename, file.content_type, file_path)
-        data = loader.load()
+        # loader, known_type = get_loader(filename, file.content_type, file_path)
+        # data = loader.load()
 
         try:
-            result = store_data_in_vector_db(data, collection_name)
-
+            # result = store_data_in_vector_db(data, collection_name)
+            result,known_type = knowledgeBase.store(collection_name,souorce=file_path,
+                                                    file_name=filename,content_type=file.content_type)
             if result:
                 return {
                     "status": True,
@@ -1262,20 +1272,22 @@ def process_doc(
             collection_name = calculate_sha256(f)[:63]
         f.close()
 
-        loader, known_type = get_loader(
-            file.filename, file.meta.get("content_type"), file_path
-        )
-        data = loader.load()
+        # loader, known_type = get_loader(
+        #     file.filename, file.meta.get("content_type"), file_path
+        # )
+        # data = loader.load()
 
         try:
-            result = store_data_in_vector_db(
-                data,
-                collection_name,
-                {
-                    "file_id": form_data.file_id,
-                    "name": file.meta.get("name", file.filename),
-                },
-            )
+            result,known_type = knowledgeBase.store(collection_name,souorce=file_path,
+                                                    file_name=file.filename,content_type=file.meta.get("content_type"))
+            # result = store_data_in_vector_db(
+            #     data,
+            #     collection_name,
+            #     {
+            #         "file_id": form_data.file_id,
+            #         "name": file.meta.get("name", file.filename),
+            #     },
+            # )
 
             if result:
                 return {

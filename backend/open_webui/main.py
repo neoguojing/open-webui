@@ -575,12 +575,12 @@ class ChatCompletionMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             log.exception(e)
 
-        try:
-            body, flags = await chat_completion_files_handler(body)
-            contexts.extend(flags.get("contexts", []))
-            citations.extend(flags.get("citations", []))
-        except Exception as e:
-            log.exception(e)
+        # try:
+        #     body, flags = await chat_completion_files_handler(body)
+        #     contexts.extend(flags.get("contexts", []))
+        #     citations.extend(flags.get("citations", []))
+        # except Exception as e:
+        #     log.exception(e)
 
         # If context is not empty, insert it into the messages
         if len(contexts) > 0:
