@@ -636,10 +636,6 @@ class ChatCompletionMiddleware(BaseHTTPMiddleware):
                 yield wrap_item(json.dumps(item))
 
             async for data in original_generator:
-                print(data)
-                # if data["citations"]:
-                #     for item in data["citations"]:
-                #         yield wrap_item(json.dumps(item))
                 yield data
 
         return StreamingResponse(

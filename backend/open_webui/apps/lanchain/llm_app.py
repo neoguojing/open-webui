@@ -69,18 +69,15 @@ class LangchainApp:
            
             question_answer_chain = create_stuff_documents_chain(self.llm, doc_qa_template)
             
-            # if not isinstance(self.history_aware_retriever, BaseRetriever):
-            #     retrieval_docs: Runnable[dict, RetrieverOutput] = self.history_aware_retriever
-            # else:
-            #     retrieval_docs = (lambda x: x["input"]) | self.history_aware_retriever
-                
-            # self.runnable = (
-            #     RunnablePassthrough.assign(
-            #         context= retrieval_docs.with_config(run_name="retrieve_documents"),
-            #     ).assign(answer=question_answer_chain,docs=retrieval_docs)
-            #     .pick(["answer", "docs","context"])
-            # ).with_config(run_name="retrieval_chain")
-            self.runnable = create_retrieval_chain(self.history_aware_retriever, question_answer_chain)
+            if not isinstance(self.history_aware_retriever, BaseRetriever):
+                self.retrieval_docs: Runnable[dict, RetrieverOutput] = self.history_aware_retriever
+            else:
+                self.retrieval_docs = (lambda x: x["input"]) | self.history_aware_retriever
+
+            self.runnable = (
+                RunnablePassthrough.assign(answer=question_answer_chain)
+            ).with_config(run_name="retrieval_chain")
+            # self.runnable = create_retrieval_chain(self.history_aware_retriever, question_answer_chain)
         else:
             self.runnable = default_template | self.llm 
 
@@ -119,14 +116,39 @@ class LangchainApp:
         if conversation_id == "":
             import uuid
             conversation_id = str(uuid.uuid4())
-
+            
         input_template = {"language": language, "input": input}
         config = {"configurable": {"user_id": user_id, "conversation_id": conversation_id}}
+        context = None
+        if self.history_aware_retriever:
+            context = self.history_aware_retriever.invoke({"input": input})
+            input_template = {"language": language, "input": input,"context":context}
         
         response = self.with_message_history.stream(input_template,config)
-        return self._process_stream(response)
+        return self._process_stream(context,response)
         
-        
+    
+    def _process_stream(self, context,response):
+        if context:
+            yield context
+        if response:
+            for item in response:
+                # print("_process_stream:",item)
+                if item is not None:
+                    if isinstance(item, AddableDict):
+                        content = item.get('answer')
+                                                
+                        if content is not None:
+                            processed_item = AIMessage(content=content)
+                            if content == "":
+                                processed_item.response_metadata = {'finish_reason': "stop"}
+                            yield processed_item  # Yield only if processed_item is valid
+                            
+                    elif isinstance(item, AIMessage):
+                        processed_item = item
+                        yield processed_item
+                
+                    
     def invoke(self,input: str,language="chinese",user_id="",conversation_id=""):
         if conversation_id == "":
             import uuid
@@ -144,43 +166,25 @@ class LangchainApp:
             response.response_metadata = {"context":context}
         return response
     
-    def _process_stream(self, response):
-        for item in response:
-            # print("_process_stream:",item)
-            if item is not None:
-                if isinstance(item, AddableDict):
-                    content = item.get('answer')
-                    if item.get('context') is not None:
-                        context = item.get('context')
-                        # print("context:", context)
-                        
-                    if content is not None:
-                        processed_item = AIMessage(content=content)
-                        if content == "":
-                            processed_item.response_metadata = {'finish_reason': "stop","context":context}
-                        yield processed_item  # Yield only if processed_item is valid
-                        
-                elif isinstance(item, AIMessage):
-                    processed_item = item
-                    yield processed_item
 
     def citations(self,relevant_docs):
-        citations = []
-
+        citations = {"citations":[]}
         for doc in relevant_docs:
             try:
                 if doc.metadata:
-                    citations.append(
+                    citations["citations"].append(
                         {
-                            "source": doc.metadata["source"],
-                            "document": doc.page_content,
-                            "metadata": doc.metadata,
+                            "source": {},
+                            "document": [doc.page_content],
+                            "metadata": [doc.metadata],
                         }
                     )
                 return citations
             except Exception as e:
                 print(e)
                 
+    def wrap_citation(self,item):
+        return f"{item}\n"
         
     def ollama(self,input: str,user_id="",conversation_id=""):
         response = self.stream(input=input,user_id=user_id,conversation_id=conversation_id)
@@ -189,34 +193,35 @@ class LangchainApp:
  
         is_done = False
         finish_reason = None
-        context = None
-        citations = None
         for item in response:
-            print(item,type(item))
+            # print(item,type(item))
+            if isinstance(item,list):
+                item = self.citations(item)
+                print("context:",item)
+                yield self.wrap_citation(json.dumps(item))
+            
+            elif isinstance(item, AIMessage):
             # 从每个 item 中提取 'content'
-            content = item.content
-            if item.response_metadata:
-                is_done = True
-                finish_reason = item.response_metadata['finish_reason']
-                context = item.response_metadata.get('context')
-                if context:
-                    citations = self.citations(context)
-            
-            utc_now = datetime.now(timezone.utc)
-            utc_now_str = utc_now.isoformat() + 'Z'
-            message_data = {
-                "model": self.model,
-                "created_at": utc_now_str,
-                "message": {
-                    "role": "assistant",
-                    "content": content
-                },
-                "done": is_done,
-                "done_reason": finish_reason,
-                "citations": citations
-            }
-            
-            yield json.dumps(message_data) + "\n"  # 添加换行符
+                content = item.content
+                if item.response_metadata:
+                    is_done = True
+                    finish_reason = item.response_metadata['finish_reason']
+                
+                utc_now = datetime.now(timezone.utc)
+                utc_now_str = utc_now.isoformat() + 'Z'
+                message_data = {
+                    "model": self.model,
+                    "created_at": utc_now_str,
+                    "message": {
+                        "role": "assistant",
+                        "content": content,
+                    },
+                    "done": is_done,
+                    "done_reason": finish_reason,
+                    
+                }
+                
+                yield json.dumps(message_data) + "\n"  # 添加换行符
     
     def __call__(self,input: str,user_id="",conversation_id=""):
         response = self.invoke(input=input,user_id=user_id,conversation_id=conversation_id)
