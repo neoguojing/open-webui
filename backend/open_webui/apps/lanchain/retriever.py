@@ -36,7 +36,10 @@ from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_community.document_loaders import AsyncChromiumLoader,AsyncHtmlLoader
 from langchain_community.document_transformers import BeautifulSoupTransformer
 from langchain_community.retrievers.web_research import QuestionListOutputParser
-
+from langchain_core.runnables import (
+    RunnableParallel,
+    RunnablePassthrough,
+)
 import logging
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -183,6 +186,8 @@ class KnowledgeManager:
         retriever = EnsembleRetriever(
             retrievers=retrievers
         )
+        
+        # retriever = RunnableParallel(input=RunnablePassthrough(), docs=retriever)
 
         if filter_type is not None:
             retriever = self.get_compress_retriever(retriever,filter_type)

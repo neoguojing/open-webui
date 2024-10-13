@@ -778,7 +778,7 @@ async def generate_chat_completion(
     #     f"{url}/api/chat", json.dumps(payload), content_type="application/x-ndjson"
     # )
     return await langchain_fastapi_wrapper(
-        user_id=user.id,session_id=chat_id,payload=payload,topk=RAG_TOP_K
+        user_id=user.id,session_id=chat_id,payload=payload,topk=int(RAG_TOP_K.config_value)
     )
 
 

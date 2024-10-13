@@ -1,10 +1,9 @@
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder,format_document
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import ConfigurableFieldSpec
 from langchain_community.chat_message_histories import SQLChatMessageHistory
-from langchain_core.runnables.base import Runnable
 from langchain.retrievers import EnsembleRetriever
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -12,12 +11,22 @@ from langchain_ollama import OllamaEmbeddings
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.messages.ai import AIMessage,AIMessageChunk
 from langchain_core.runnables.utils import AddableDict
+from langchain_core.runnables.base import Runnable
+from langchain_core.runnables import (
+    RunnableParallel,
+    RunnablePassthrough,
+)
+from langchain_core.retrievers import (
+    BaseRetriever,
+    RetrieverOutput,
+)
+from langchain_core.output_parsers import StrOutputParser
 from open_webui.apps.lanchain.prompt import default_template,contextualize_q_template,doc_qa_template
 import json
 from datetime import datetime,timezone
 from langchain.globals import set_debug
 
-set_debug(True)
+set_debug(False)
 
 class LangchainApp:
     
@@ -53,24 +62,25 @@ class LangchainApp:
             #     # If chat history, then we pass inputs to LLM chain, then to retriever
             #     prompt | llm | StrOutputParser() | retriever,
             # ).with_config(run_name="chat_retriever_chain")
-            history_aware_retriever = create_history_aware_retriever(
+            
+            self.history_aware_retriever = create_history_aware_retriever(
                 self.llm, self.retrievers, contextualize_q_template
             )
-            # (
-            #     RunnablePassthrough.assign(**{"context": format_docs}).with_config(
-            #         run_name="format_inputs"
-            #     )
-            #     | prompt
-            #     | llm
-            #     | _output_parser
-            # ).with_config(run_name="stuff_documents_chain")
+           
             question_answer_chain = create_stuff_documents_chain(self.llm, doc_qa_template)
-            # retrieval_chain = (
+            
+            # if not isinstance(self.history_aware_retriever, BaseRetriever):
+            #     retrieval_docs: Runnable[dict, RetrieverOutput] = self.history_aware_retriever
+            # else:
+            #     retrieval_docs = (lambda x: x["input"]) | self.history_aware_retriever
+                
+            # self.runnable = (
             #     RunnablePassthrough.assign(
-            #         context=retrieval_docs.with_config(run_name="retrieve_documents"),
-            #     ).assign(answer=combine_docs_chain)
+            #         context= retrieval_docs.with_config(run_name="retrieve_documents"),
+            #     ).assign(answer=question_answer_chain,docs=retrieval_docs)
+            #     .pick(["answer", "docs","context"])
             # ).with_config(run_name="retrieval_chain")
-            self.runnable = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+            self.runnable = create_retrieval_chain(self.history_aware_retriever, question_answer_chain)
         else:
             self.runnable = default_template | self.llm 
 
@@ -102,6 +112,9 @@ class LangchainApp:
     def get_session_history(self,user_id: str, conversation_id: str):
         return SQLChatMessageHistory(f"{user_id}--{conversation_id}", self.db_path)
     
+    def query_doc(self,input):
+        return self.history_aware_retriever.invoke({"input":input})
+        
     def stream(self,input: str,language="chinese",user_id="",conversation_id=""):
         if conversation_id == "":
             import uuid
@@ -123,24 +136,30 @@ class LangchainApp:
         config = {"configurable": {"user_id": user_id, "conversation_id": conversation_id}}
         
         response = self.with_message_history.invoke(input_template,config)
+        print("invoke:",response)
         if isinstance(response,dict):
             content = response['answer']
+            context = response.get('context')
             response = AIMessage(content=content)
+            response.response_metadata = {"context":context}
         return response
     
     def _process_stream(self, response):
         for item in response:
+            print("_process_stream:",item)
             if item is not None:
                 if isinstance(item, AddableDict):
                     content = item.get('answer')
-                    context = item.get('context')
-                    if context is not None:
+                    if item.get('context') is not None:
+                        context = item.get('context')
                         print("context:", context)
+                        
                     if content is not None:
                         processed_item = AIMessage(content=content)
                         if content == "":
-                            processed_item.response_metadata = {'finish_reason': "stop"}
+                            processed_item.response_metadata = {'finish_reason': "stop","context":context}
                         yield processed_item  # Yield only if processed_item is valid
+                        
                 elif isinstance(item, AIMessage):
                     processed_item = item
                     yield processed_item
@@ -152,6 +171,7 @@ class LangchainApp:
  
         is_done = False
         finish_reason = None
+        context = None
         for item in response:
             # print(item,type(item))
             # 从每个 item 中提取 'content'
@@ -159,6 +179,7 @@ class LangchainApp:
             if item.response_metadata:
                 is_done = True
                 finish_reason = item.response_metadata['finish_reason']
+                context = item.response_metadata['context']
             
             utc_now = datetime.now(timezone.utc)
             utc_now_str = utc_now.isoformat() + 'Z'
@@ -170,7 +191,8 @@ class LangchainApp:
                     "content": content
                 },
                 "done": is_done,
-                "done_reason": finish_reason
+                "done_reason": finish_reason,
+                "context": context
             }
             
             yield json.dumps(message_data) + "\n"  # 添加换行符
