@@ -606,8 +606,8 @@ class ChatCompletionMiddleware(BaseHTTPMiddleware):
                 )
 
         # If there are citations, add them to the data_items
-        if len(citations) > 0:
-            data_items.append({"citations": citations})
+        # if len(citations) > 0:
+        #     data_items.append({"citations": citations})
 
         modified_body_bytes = json.dumps(body).encode("utf-8")
         # Replace the request body with the modified one
@@ -636,6 +636,10 @@ class ChatCompletionMiddleware(BaseHTTPMiddleware):
                 yield wrap_item(json.dumps(item))
 
             async for data in original_generator:
+                print(data)
+                # if data["citations"]:
+                #     for item in data["citations"]:
+                #         yield wrap_item(json.dumps(item))
                 yield data
 
         return StreamingResponse(

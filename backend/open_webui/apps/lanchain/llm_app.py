@@ -146,13 +146,13 @@ class LangchainApp:
     
     def _process_stream(self, response):
         for item in response:
-            print("_process_stream:",item)
+            # print("_process_stream:",item)
             if item is not None:
                 if isinstance(item, AddableDict):
                     content = item.get('answer')
                     if item.get('context') is not None:
                         context = item.get('context')
-                        print("context:", context)
+                        # print("context:", context)
                         
                     if content is not None:
                         processed_item = AIMessage(content=content)
@@ -164,6 +164,24 @@ class LangchainApp:
                     processed_item = item
                     yield processed_item
 
+    def citations(self,relevant_docs):
+        citations = []
+
+        for doc in relevant_docs:
+            try:
+                if doc.metadata:
+                    citations.append(
+                        {
+                            "source": doc.metadata["source"],
+                            "document": doc.page_content,
+                            "metadata": doc.metadata,
+                        }
+                    )
+                return citations
+            except Exception as e:
+                print(e)
+                
+        
     def ollama(self,input: str,user_id="",conversation_id=""):
         response = self.stream(input=input,user_id=user_id,conversation_id=conversation_id)
         content = None
@@ -172,14 +190,17 @@ class LangchainApp:
         is_done = False
         finish_reason = None
         context = None
+        citations = None
         for item in response:
-            # print(item,type(item))
+            print(item,type(item))
             # 从每个 item 中提取 'content'
             content = item.content
             if item.response_metadata:
                 is_done = True
                 finish_reason = item.response_metadata['finish_reason']
-                context = item.response_metadata['context']
+                context = item.response_metadata.get('context')
+                if context:
+                    citations = self.citations(context)
             
             utc_now = datetime.now(timezone.utc)
             utc_now_str = utc_now.isoformat() + 'Z'
@@ -192,7 +213,7 @@ class LangchainApp:
                 },
                 "done": is_done,
                 "done_reason": finish_reason,
-                "context": context
+                "citations": citations
             }
             
             yield json.dumps(message_data) + "\n"  # 添加换行符

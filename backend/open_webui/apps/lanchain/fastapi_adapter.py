@@ -72,9 +72,8 @@ async def langchain_fastapi_wrapper(
             headers = {}
             if content_type:
                 headers["Content-Type"] = content_type
-            iter = app.ollama(input,user_id=user_id,conversation_id=session_id)
             return StreamingResponse(
-                iter,
+                app.ollama(input,user_id=user_id,conversation_id=session_id),
                 status_code=200,
                 headers=headers,
                 background=BackgroundTask(
