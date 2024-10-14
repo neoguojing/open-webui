@@ -62,7 +62,6 @@ class LangchainApp:
             #     # If chat history, then we pass inputs to LLM chain, then to retriever
             #     prompt | llm | StrOutputParser() | retriever,
             # ).with_config(run_name="chat_retriever_chain")
-            
             self.history_aware_retriever = create_history_aware_retriever(
                 self.llm, self.retrievers, contextualize_q_template
             )
@@ -156,7 +155,10 @@ class LangchainApp:
 
         input_template = {"language": language, "input": input}
         config = {"configurable": {"user_id": user_id, "conversation_id": conversation_id}}
-        
+        if self.history_aware_retriever:
+            context = self.history_aware_retriever.invoke({"input": input})
+            input_template = {"language": language, "input": input,"context":context}
+
         response = self.with_message_history.invoke(input_template,config)
         print("invoke:",response)
         if isinstance(response,dict):

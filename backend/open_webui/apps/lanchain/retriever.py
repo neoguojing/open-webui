@@ -40,6 +40,9 @@ from langchain_core.runnables import (
     RunnableParallel,
     RunnablePassthrough,
 )
+
+from datetime import datetime, timezone
+
 import logging
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -55,6 +58,10 @@ class FilterType(Enum):
     LLM_FILTER = "llm_chain_filter"
     LLM_RERANK = "llm_listwise_rerank"
     RELEVANT_FILTER = "embeddings_filter"
+
+class SimAlgoType(Enum):
+    MMR = "mmr"
+    SST = "similarity_score_threshold"
     
 # Load HTML
 # loader = AsyncChromiumLoader(["https://www.wsj.com"])
@@ -88,8 +95,7 @@ class KnowledgeManager:
 
         self.collection_manager = CollectionManager(data_path)
 
-    def store(self,collection_name: str, source: Union[str, List[str]], source_type: SourceType=SourceType.FILE,
-               file_name:str = None,content_type: str = None):
+    def store(self,collection_name: str, source: Union[str, List[str]], source_type: SourceType=SourceType.FILE, **kwargs):
         """
         存储 URL 或文件，支持单个或多个 source。
         
@@ -117,15 +123,28 @@ class KnowledgeManager:
             elif source_type == SourceType.WEB:
                 loader = self.get_web_loader(sources)
             else:
+                file_name = kwargs.get('file_name')
+                content_type = kwargs.get('content_type')
                 if file_name is None:
                     raise ValueError("File name is required for file storage.")
                 loader,known_type = self.get_loader(file_name,source,content_type)
             
             print("start load file---------")
             raw_docs = loader.load()
+            # 获取当前 UTC 时间
+            now_utc = datetime.now(timezone.utc)
+
+            # 将 UTC 时间格式化为标准 ISO 8601 格式
+            utc_standard_format = now_utc.isoformat()
+
             for doc in raw_docs:
                 doc.page_content = doc.page_content.replace("\n", " ")
                 doc.page_content = doc.page_content.replace("\t", "")
+                doc.metadata["collection_name"] = collection_name
+                doc.metadata["type"] = source_type
+                doc.metadata["created_at"] = utc_standard_format
+                doc.metadata = {**doc.metadata, **kwargs}
+
             print("loader file count:",len(raw_docs))
             docs = self.split_documents(raw_docs)
             print("splited documents count:",len(docs))
@@ -163,7 +182,8 @@ class KnowledgeManager:
 
         return compression_retriever
     
-    def get_retriever(self,collection_names,k: int,bm25: bool=False,filter_type=FilterType.LLM_FILTER):
+    def get_retriever(self,collection_names,k: int,bm25: bool=False,filter_type=FilterType.LLM_FILTER,
+                      sim_algo:SimAlgoType = SimAlgoType.MMR):
         
         if isinstance(collection_names, str):
             collection_names = [collection_names]  # 如果是字符串，转为列表
@@ -171,10 +191,16 @@ class KnowledgeManager:
         retrievers = []
         docs = []
         for collection_name in collection_names:
-            chroma_retriever = self.collection_manager.get_vector_store(collection_name).as_retriever(
-                search_type="mmr",
-                search_kwargs={'k': k, 'lambda_mult': 0.25}
-            )
+            if sim_algo == SimAlgoType.MMR:
+                chroma_retriever = self.collection_manager.get_vector_store(collection_name).as_retriever(
+                    search_type="mmr",
+                    search_kwargs={'k': k, 'lambda_mult': 0.5}
+                )
+            elif sim_algo == SimAlgoType.SST:
+                chroma_retriever = self.collection_manager.get_vector_store(collection_name).as_retriever(
+                    search_type="similarity_score_threshold",
+                    search_kwargs={"score_threshold": 0.5}
+                )
             retrievers.append(chroma_retriever)
             if bm25:
                 docs.extend(self.collection_manager.get_documents(collection_name))
