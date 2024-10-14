@@ -40,8 +40,7 @@ from langchain_core.runnables import (
     RunnableParallel,
     RunnablePassthrough,
 )
-
-from datetime import datetime, timezone
+import time
 
 import logging
 log = logging.getLogger(__name__)
@@ -117,13 +116,14 @@ class KnowledgeManager:
             raise ValueError("Source must be a string or a list of strings.")
     
         loader = None
+        known_type = None
         try:
             if source_type == SourceType.YOUTUBE:
                 loader = self.get_youtube_loader(sources)
             elif source_type == SourceType.WEB:
                 loader = self.get_web_loader(sources)
             else:
-                file_name = kwargs.get('file_name')
+                file_name = kwargs.get('filename')
                 content_type = kwargs.get('content_type')
                 if file_name is None:
                     raise ValueError("File name is required for file storage.")
@@ -131,18 +131,13 @@ class KnowledgeManager:
             
             print("start load file---------")
             raw_docs = loader.load()
-            # 获取当前 UTC 时间
-            now_utc = datetime.now(timezone.utc)
-
-            # 将 UTC 时间格式化为标准 ISO 8601 格式
-            utc_standard_format = now_utc.isoformat()
 
             for doc in raw_docs:
                 doc.page_content = doc.page_content.replace("\n", " ")
                 doc.page_content = doc.page_content.replace("\t", "")
                 doc.metadata["collection_name"] = collection_name
-                doc.metadata["type"] = source_type
-                doc.metadata["created_at"] = utc_standard_format
+                doc.metadata["type"] = str(source_type)
+                doc.metadata["timestamp"] = str(time.time())
                 doc.metadata = {**doc.metadata, **kwargs}
 
             print("loader file count:",len(raw_docs))
@@ -156,7 +151,7 @@ class KnowledgeManager:
             if e.__class__.__name__ == "UniqueConstraintError":
                 return True
             log.exception(e)
-            return False,known_type
+            return None,known_type
 
     def get_compress_retriever(self,retriever,filter_type:FilterType):
         relevant_filter = None
@@ -457,12 +452,12 @@ class KnowledgeManager:
         # print("url_meta_map:",url_meta_map)
         # Relevant urls
         urls = set(urls_to_look)
-        
+        collection_name,known_type = self.store(collection_name,list(urls),SourceType.WEB)
         # docs = self.web_parser(urls,url_meta_map,collection_name)
-        return self.store(collection_name,list(urls),SourceType.WEB),urls
+        return collection_name,known_type,urls
          
 
-    def split_documents(self, documents,chunk_size=1024,chunk_overlap=50):
+    def split_documents(self, documents,chunk_size=1500,chunk_overlap=100):
         text_splitter = RecursiveCharacterTextSplitter(separators=[
                                                     "\n\n",
                                                     "\n",

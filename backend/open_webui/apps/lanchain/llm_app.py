@@ -169,14 +169,14 @@ class LangchainApp:
         return response
     
 
-    def citations(self,relevant_docs):
+    def citations(self,relevant_docs,source):
         citations = {"citations":[]}
-        for doc in relevant_docs:
+        for i,doc in enumerate(relevant_docs):
             try:
                 if doc.metadata:
                     citations["citations"].append(
                         {
-                            "source": {},
+                            "source": source[i]['source'],
                             "document": [doc.page_content],
                             "metadata": [doc.metadata],
                         }
@@ -188,7 +188,7 @@ class LangchainApp:
     def wrap_citation(self,item):
         return f"{item}\n"
         
-    def ollama(self,input: str,user_id="",conversation_id=""):
+    def ollama(self,input: str,user_id="",conversation_id="",**kwargs):
         response = self.stream(input=input,user_id=user_id,conversation_id=conversation_id)
         content = None
         message_data = None
@@ -198,9 +198,9 @@ class LangchainApp:
         for item in response:
             # print(item,type(item))
             if isinstance(item,list):
-                item = self.citations(item)
-                print("context:",item)
-                yield self.wrap_citation(json.dumps(item))
+                if item:
+                    item = self.citations(item,kwargs.get("contexts"))
+                    yield self.wrap_citation(json.dumps(item))
             
             elif isinstance(item, AIMessage):
             # 从每个 item 中提取 'content'

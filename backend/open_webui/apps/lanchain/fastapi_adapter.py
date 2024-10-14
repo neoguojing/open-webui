@@ -59,6 +59,7 @@ async def langchain_fastapi_wrapper(
 
     try:
         files = payload.get("metadata", {}).get("files", None)
+        contexts = None
         if files:
             collections,contexts = get_rag_context(files)
             retriever = knowledgeBase.get_retriever(collections,topk)
@@ -73,7 +74,7 @@ async def langchain_fastapi_wrapper(
             if content_type:
                 headers["Content-Type"] = content_type
             return StreamingResponse(
-                app.ollama(input,user_id=user_id,conversation_id=session_id),
+                app.ollama(input,user_id=user_id,conversation_id=session_id,contexts=contexts),
                 status_code=200,
                 headers=headers,
                 background=BackgroundTask(
@@ -148,31 +149,9 @@ def get_rag_context(
             
         if context:
             relevant_contexts.append({**context, "source": file})
-
+        else:
+            relevant_contexts.append({"source": file})
         extracted_collections.extend(collection_names)
-
-    # contexts = []
-    # citations = []
-
-    # for context in relevant_contexts:
-    #     try:
-    #         if "documents" in context:
-    #             contexts.append(
-    #                 "\n\n".join(
-    #                     [text for text in context["documents"][0] if text is not None]
-    #                 )
-    #             )
-
-    #             if "metadatas" in context:
-    #                 citations.append(
-    #                     {
-    #                         "source": context["source"],
-    #                         "document": context["documents"][0],
-    #                         "metadata": context["metadatas"][0],
-    #                     }
-    #                 )
-    #     except Exception as e:
-    #         log.exception(e)
 
     return extracted_collections,relevant_contexts
 

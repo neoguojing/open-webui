@@ -1232,7 +1232,7 @@ def store_doc(
         try:
             # result = store_data_in_vector_db(data, collection_name)
             result,known_type = knowledgeBase.store(collection_name,source=file_path,
-                                                    file_name=filename,content_type=file.content_type,
+                                                    filename=filename,content_type=file.content_type,
                                                     user_id=user.id)
             if result:
                 return {
@@ -1287,7 +1287,7 @@ def process_doc(
         # data = loader.load()
 
         try:
-            result,known_type = knowledgeBase.store(collection_name,source=file_path,file_name=file.filename,
+            result,known_type = knowledgeBase.store(collection_name,source=file_path,filename=file.filename,
                                                     content_type=file.meta.get("content_type"),
                                                     user_id=user.id)
             # result = store_data_in_vector_db(
