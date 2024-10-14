@@ -450,7 +450,7 @@ class KnowledgeManager:
                                                     "\u3002",  # Ideographic full stop
                                                     "",
                                                 ],
-                                                chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+                                                chunk_size=chunk_size, chunk_overlap=chunk_overlap,add_start_index=True)
         return text_splitter.split_documents(documents)
 
 
