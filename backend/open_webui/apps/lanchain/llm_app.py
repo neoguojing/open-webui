@@ -27,7 +27,7 @@ from datetime import datetime,timezone
 from langchain.globals import set_debug
 from collections import defaultdict
 
-set_debug(False)
+set_debug(True)
 
 class LangchainApp:
     
@@ -68,15 +68,8 @@ class LangchainApp:
             )
            
             question_answer_chain = create_stuff_documents_chain(self.llm, doc_qa_template)
-            
-            if not isinstance(self.history_aware_retriever, BaseRetriever):
-                self.retrieval_docs: Runnable[dict, RetrieverOutput] = self.history_aware_retriever
-            else:
-                self.retrieval_docs = (lambda x: x["input"]) | self.history_aware_retriever
 
-            self.runnable = (
-                RunnablePassthrough.assign(answer=question_answer_chain)
-            ).with_config(run_name="retrieval_chain")
+            self.runnable = question_answer_chain
             # self.runnable = create_retrieval_chain(self.history_aware_retriever, question_answer_chain)
         else:
             self.runnable = default_template | self.llm 
@@ -147,7 +140,12 @@ class LangchainApp:
                     elif isinstance(item, AIMessage):
                         processed_item = item
                         yield processed_item
-                
+                    elif isinstance(item, str):
+                        processed_item = AIMessage(content=item)
+                        if item == "":
+                            processed_item.response_metadata = {'finish_reason': "stop"}
+                        yield processed_item  # Yield only if processed_item is valid
+                            
                     
     def invoke(self,input: str,language="chinese",user_id="",conversation_id=""):
         if conversation_id == "":
@@ -174,33 +172,40 @@ class LangchainApp:
         # 初始化 citations 和 citamap
         citations = {"citations": []}
         citamap = defaultdict(lambda: defaultdict(dict))  # 使用 defaultdict 来自动初始化嵌套字典
-
+        print("relevant_docs num:", len(relevant_docs))
+        print("context:", contexts)
+        
+        def build_citations(context,doc,filename):
+            # 如果匹配，更新 citamap
+            citation = citamap[context['source'].get("collection_name")].get(filename)
+            if citation:  # 如果已经有值，则追加
+                citation["document"].append(doc.page_content)
+                citation["metadata"].append(doc.metadata)
+            else:  # 否则初始化
+                context['source']["name"] = filename
+                citamap[context.get("collection_name")][filename] = {
+                    "source": context['source'],
+                    "document": [doc.page_content],
+                    "metadata": [doc.metadata],
+                }
         # 遍历每个文档和上下文
         for doc in relevant_docs:
             for c in contexts:
                 try:
                     if doc.metadata:
-                        print("doc.metadata:", doc.metadata)
-                        print("context:", c)
-
                         # 匹配文档和上下文的 collection_name 和 filename/source
-                        if doc.metadata.get("collection_name") == c.get("collection_name"):
-                            doc_filename = doc.metadata.get("filename") or doc.metadata.get("source")
-                            context_filename = c.get("filename")
-                            
-                            if doc_filename == context_filename:
-                                # 如果匹配，更新 citamap
-                                val = citamap[c.get("collection_name")].get(context_filename)
+                        doc_filename = doc.metadata.get("filename") or doc.metadata.get("source")
+                        uid,doc_filename = doc_filename.split('_', 1)
+                        if c['source'].get("type") == "collection":
+                            for collection_name in c['source'].get("collection_names"):
+                                if collection_name == doc.metadata.get("collection_name"):
+                                    build_citations(c,doc,doc_filename)
+                        else:
+                            if doc.metadata.get("collection_name") == c['source'].get("collection_name"):
+                                context_filename = c['source'].get("filename")
                                 
-                                if val:  # 如果已经有值，则追加
-                                    val["document"].append(doc.page_content)
-                                    val["metadata"].append(doc.metadata)
-                                else:  # 否则初始化
-                                    citamap[c.get("collection_name")][context_filename] = {
-                                        "source": c['source'],
-                                        "document": [doc.page_content],
-                                        "metadata": [doc.metadata],
-                                    }
+                                if doc_filename == context_filename:
+                                    build_citations(c,doc,context_filename)
                 except Exception as e:
                     print(f"Error processing document {doc.metadata}: {e}")
 

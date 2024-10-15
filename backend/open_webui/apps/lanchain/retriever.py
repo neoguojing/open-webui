@@ -138,7 +138,7 @@ class KnowledgeManager:
                     doc.page_content = doc.page_content.replace("\n", " ")
                     doc.page_content = doc.page_content.replace("\t", "")
                     doc.metadata["collection_name"] = collection_name
-                    doc.metadata["type"] = str(source_type)
+                    doc.metadata["type"] = source_type.value
                     doc.metadata["timestamp"] = str(time.time())
                     doc.metadata["source"] = source
                     doc.metadata = {**doc.metadata, **kwargs}
