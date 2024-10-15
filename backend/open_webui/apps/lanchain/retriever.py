@@ -118,33 +118,35 @@ class KnowledgeManager:
         loader = None
         known_type = None
         try:
-            if source_type == SourceType.YOUTUBE:
-                loader = self.get_youtube_loader(sources)
-            elif source_type == SourceType.WEB:
-                loader = self.get_web_loader(sources)
-            else:
-                file_name = kwargs.get('filename')
-                content_type = kwargs.get('content_type')
-                if file_name is None:
-                    raise ValueError("File name is required for file storage.")
-                loader,known_type = self.get_loader(file_name,source,content_type)
-            
-            print("start load file---------")
-            raw_docs = loader.load()
-
-            for doc in raw_docs:
-                doc.page_content = doc.page_content.replace("\n", " ")
-                doc.page_content = doc.page_content.replace("\t", "")
-                doc.metadata["collection_name"] = collection_name
-                doc.metadata["type"] = str(source_type)
-                doc.metadata["timestamp"] = str(time.time())
-                doc.metadata = {**doc.metadata, **kwargs}
-
-            print("loader file count:",len(raw_docs))
-            docs = self.split_documents(raw_docs)
-            print("splited documents count:",len(docs))
             store = self.collection_manager.get_vector_store(collection_name)
-            store.add_documents(docs)
+            for source in sources:
+                if source_type == SourceType.YOUTUBE:
+                    loader = self.get_youtube_loader(source)
+                elif source_type == SourceType.WEB:
+                    loader = self.get_web_loader(source)
+                else:
+                    file_name = kwargs.get('filename')
+                    content_type = kwargs.get('content_type')
+                    if file_name is None:
+                        raise ValueError("File name is required for file storage.")
+                    loader,known_type = self.get_loader(file_name,source,content_type)
+                
+                print("start load file---------")
+                raw_docs = loader.load()
+
+                for doc in raw_docs:
+                    doc.page_content = doc.page_content.replace("\n", " ")
+                    doc.page_content = doc.page_content.replace("\t", "")
+                    doc.metadata["collection_name"] = collection_name
+                    doc.metadata["type"] = str(source_type)
+                    doc.metadata["timestamp"] = str(time.time())
+                    doc.metadata["source"] = source
+                    doc.metadata = {**doc.metadata, **kwargs}
+
+                print("loader file count:",len(raw_docs))
+                docs = self.split_documents(raw_docs)
+                print("splited documents count:",len(docs))
+                store.add_documents(docs)
             print("add documents done------")
             return collection_name,known_type
         except Exception as e:

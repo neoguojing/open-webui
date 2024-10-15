@@ -25,6 +25,7 @@ from open_webui.apps.lanchain.prompt import default_template,contextualize_q_tem
 import json
 from datetime import datetime,timezone
 from langchain.globals import set_debug
+from collections import defaultdict
 
 set_debug(False)
 
@@ -169,21 +170,46 @@ class LangchainApp:
         return response
     
 
-    def citations(self,relevant_docs,source):
-        citations = {"citations":[]}
-        for i,doc in enumerate(relevant_docs):
-            try:
-                if doc.metadata:
-                    citations["citations"].append(
-                        {
-                            "source": source[i]['source'],
-                            "document": [doc.page_content],
-                            "metadata": [doc.metadata],
-                        }
-                    )
-                return citations
-            except Exception as e:
-                print(e)
+    def citations(self, relevant_docs, contexts):
+        # 初始化 citations 和 citamap
+        citations = {"citations": []}
+        citamap = defaultdict(lambda: defaultdict(dict))  # 使用 defaultdict 来自动初始化嵌套字典
+
+        # 遍历每个文档和上下文
+        for doc in relevant_docs:
+            for c in contexts:
+                try:
+                    if doc.metadata:
+                        print("doc.metadata:", doc.metadata)
+                        print("context:", c)
+
+                        # 匹配文档和上下文的 collection_name 和 filename/source
+                        if doc.metadata.get("collection_name") == c.get("collection_name"):
+                            doc_filename = doc.metadata.get("filename") or doc.metadata.get("source")
+                            context_filename = c.get("filename")
+                            
+                            if doc_filename == context_filename:
+                                # 如果匹配，更新 citamap
+                                val = citamap[c.get("collection_name")].get(context_filename)
+                                
+                                if val:  # 如果已经有值，则追加
+                                    val["document"].append(doc.page_content)
+                                    val["metadata"].append(doc.metadata)
+                                else:  # 否则初始化
+                                    citamap[c.get("collection_name")][context_filename] = {
+                                        "source": c['source'],
+                                        "document": [doc.page_content],
+                                        "metadata": [doc.metadata],
+                                    }
+                except Exception as e:
+                    print(f"Error processing document {doc.metadata}: {e}")
+
+        # 构建 citations 列表
+        for collection, files in citamap.items():
+            for filename, file_data in files.items():
+                citations["citations"].append(file_data)
+
+        return citations
                 
     def wrap_citation(self,item):
         return f"{item}\n"
