@@ -711,7 +711,8 @@ def store_youtube_video(form_data: UrlForm, user=Depends(get_verified_user)):
 
         collection_name = form_data.collection_name
         if collection_name == "":
-            collection_name = calculate_sha256_string(form_data.url)[:63]
+            # collection_name = calculate_sha256_string(form_data.url)[:63]
+            collection_name = "youtube"
 
         # store_data_in_vector_db(data, collection_name, overwrite=True)
         result,known_type = knowledgeBase.store(collection_name,source=form_data.url,
@@ -742,7 +743,8 @@ def store_web(form_data: UrlForm, user=Depends(get_verified_user)):
 
         collection_name = form_data.collection_name
         if collection_name == "":
-            collection_name = calculate_sha256_string(form_data.url)[:63]
+            # collection_name = calculate_sha256_string(form_data.url)[:63]
+            collection_name = "web"
 
         # store_data_in_vector_db(data, collection_name, overwrite=True)
         result,known_type = knowledgeBase.store(collection_name,source=form_data.url,
@@ -950,7 +952,8 @@ def store_web_search(form_data: SearchForm, user=Depends(get_verified_user)):
 
         collection_name = form_data.collection_name
         if collection_name == "":
-            collection_name = calculate_sha256_string(form_data.query)[:63]
+            # collection_name = calculate_sha256_string(form_data.query)[:63]
+            collection_name = "web"
 
         # store_data_in_vector_db(data, collection_name, overwrite=True)
         result,known_type,urls = knowledgeBase.web_search(form_data.query,collection_name)

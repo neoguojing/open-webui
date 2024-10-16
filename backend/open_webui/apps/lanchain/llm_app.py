@@ -26,8 +26,16 @@ import json
 from datetime import datetime,timezone
 from langchain.globals import set_debug
 from collections import defaultdict
+import validators
 
-set_debug(True)
+def is_valid_url(url):
+    return validators.url(url)
+
+import logging
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+
+set_debug(False)
 
 class LangchainApp:
     
@@ -52,6 +60,8 @@ class LangchainApp:
         
         # self.llm  = OllamaLLM(model=model,base_url="http://localhost:11434")
         self.retrievers = retrievers
+        self.history_aware_retriever = None
+        
         if retrievers is not None:
             # retrieve_documents: RetrieverOutputLike = RunnableBranch(
             #     (
@@ -115,6 +125,7 @@ class LangchainApp:
         context = None
         if self.history_aware_retriever:
             context = self.history_aware_retriever.invoke({"input": input})
+            log.info("qury context: %s",context)
             input_template = {"language": language, "input": input,"context":context}
         
         response = self.with_message_history.stream(input_template,config)
@@ -195,17 +206,18 @@ class LangchainApp:
                     if doc.metadata:
                         # 匹配文档和上下文的 collection_name 和 filename/source
                         doc_filename = doc.metadata.get("filename") or doc.metadata.get("source")
-                        uid,doc_filename = doc_filename.split('_', 1)
+                        if not is_valid_url(doc_filename):
+                            uid,doc_filename = doc_filename.split('_', 1)
                         if c['source'].get("type") == "collection":
                             for collection_name in c['source'].get("collection_names"):
                                 if collection_name == doc.metadata.get("collection_name"):
                                     build_citations(c,doc,doc_filename)
                         else:
                             if doc.metadata.get("collection_name") == c['source'].get("collection_name"):
-                                context_filename = c['source'].get("filename")
-                                
-                                if doc_filename == context_filename:
-                                    build_citations(c,doc,context_filename)
+                                context_filename = c['source'].get("filename") 
+                                urls = c['source'].get("urls") 
+                                if doc_filename == context_filename or doc_filename in urls:
+                                    build_citations(c,doc,doc_filename)
                 except Exception as e:
                     print(f"Error processing document {doc.metadata}: {e}")
 
