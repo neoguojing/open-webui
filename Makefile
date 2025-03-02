@@ -31,6 +31,9 @@ update:
 	$(DOCKER_COMPOSE) up --build -d
 	$(DOCKER_COMPOSE) start
 
+env:
+	npm install
+	cd backend && pip install -r requirements.txt -U
 front:
 	npm run dev
 
