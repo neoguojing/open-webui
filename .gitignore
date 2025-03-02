@@ -307,3 +307,6 @@ dist
 cypress/videos
 cypress/screenshots
 .vscode/settings.json
+langchain.db
+backend/vector_store/chroma.sqlite3
+test/chroma.sqlite3
