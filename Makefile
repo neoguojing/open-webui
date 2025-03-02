@@ -31,3 +31,8 @@ update:
 	$(DOCKER_COMPOSE) up --build -d
 	$(DOCKER_COMPOSE) start
 
+front:
+	npm run dev
+
+dev:
+	cd backend && sh dev.sh
