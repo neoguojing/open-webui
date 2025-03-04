@@ -1560,7 +1560,7 @@ async def process_chat_response(
                                                         ] += delta_arguments
                                     # 数据内容
                                     value = delta.get("content")
-
+                                    # 执行内容拼接
                                     if value:
                                         content = f"{content}{value}"
 
@@ -1571,7 +1571,7 @@ async def process_chat_response(
                                                     "content": "",
                                                 }
                                             )
-
+                                        # TODO 此处不能用空字符串 链接list消息,如图像和audio等
                                         content_blocks[-1]["content"] = (
                                             content_blocks[-1]["content"] + value
                                         )
@@ -1639,7 +1639,7 @@ async def process_chat_response(
                             if done:
                                 pass
                             else:
-                                log.debug("Error: ", e)
+                                log.error("Error: ", e)
                                 continue
                     # 包含了解析的消息内容
                     if content_blocks:
