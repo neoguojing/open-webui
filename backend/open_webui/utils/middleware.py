@@ -649,7 +649,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
         form_data["model"],
         request.app.state.config.TASK_MODEL,
         request.app.state.config.TASK_MODEL_EXTERNAL,
-        models,
+        models, 
     )
 
     events = []
@@ -859,6 +859,7 @@ async def process_chat_response(
     request, response, form_data, user, events, metadata, tasks
 ):
     async def background_tasks_handler():
+        # 获取历史消息
         message_map = Chats.get_messages_by_chat_id(metadata["chat_id"])
         message = message_map.get(metadata["message_id"]) if message_map else None
 
@@ -866,6 +867,7 @@ async def process_chat_response(
             messages = get_message_list(message_map, message.get("id"))
 
             if tasks and messages:
+                # 标题生成
                 if TASKS.TITLE_GENERATION in tasks:
                     if tasks[TASKS.TITLE_GENERATION]:
                         res = await generate_title(
@@ -921,7 +923,7 @@ async def process_chat_response(
                                 "data": message.get("content", "New Chat"),
                             }
                         )
-
+                # 标签生成
                 if TASKS.TAGS_GENERATION in tasks and tasks[TASKS.TAGS_GENERATION]:
                     res = await generate_chat_tags(
                         request,
@@ -1077,7 +1079,7 @@ async def process_chat_response(
                 "model": model_id,
             },
         )
-
+        # 分离末尾的空格环行等字符
         def split_content_and_whitespace(content):
             content_stripped = content.rstrip()
             original_whitespace = (
@@ -1087,6 +1089,7 @@ async def process_chat_response(
             )
             return content_stripped, original_whitespace
 
+        # 是否是代码块
         def is_opening_code_block(content):
             backtick_segments = content.split("```")
             # Even number of segments means the last backticks are opening a new block
@@ -1094,6 +1097,7 @@ async def process_chat_response(
 
         # Handle as a background task
         async def post_response_handler(response, events):
+            # TODO 需要处理图片和语音信息
             def serialize_content_blocks(content_blocks, raw=False):
                 content = ""
 
@@ -1377,6 +1381,7 @@ async def process_chat_response(
 
                 return content, content_blocks, end_flag
 
+            # 从表中获取历史消息
             message = Chats.get_message_by_id_and_message_id(
                 metadata["chat_id"], metadata["message_id"]
             )
@@ -1386,18 +1391,21 @@ async def process_chat_response(
             last_assistant_message = None
             try:
                 if form_data["messages"][-1]["role"] == "assistant":
+                    # TODO get_last_assistant_message 返回的消息只获取text的内容
                     last_assistant_message = get_last_assistant_message(
                         form_data["messages"]
                     )
             except Exception as e:
                 pass
-
+            
+            # content的内容是message.content 或者 last_assistant_message的内容
             content = (
                 message.get("content", "")
                 if message
                 else last_assistant_message if last_assistant_message else ""
             )
 
+            # TODO 此处只有text的消息无法满足图片和语音
             content_blocks = [
                 {
                     "type": "text",
@@ -1406,6 +1414,7 @@ async def process_chat_response(
             ]
 
             # We might want to disable this by default
+            # 各种模型场景
             DETECT_REASONING = True
             DETECT_SOLUTION = True
             DETECT_CODE_INTERPRETER = metadata.get("features", {}).get(
@@ -1427,6 +1436,7 @@ async def process_chat_response(
             solution_tags = [("|begin_of_solution|", "|end_of_solution|")]
 
             try:
+                # 发送和保存事件
                 for event in events:
                     await event_emitter(
                         {
@@ -1449,23 +1459,28 @@ async def process_chat_response(
                     nonlocal content_blocks
 
                     response_tool_calls = []
-
+                    # 遍历返回消息
                     async for line in response.body_iterator:
+                        # 解码
                         line = line.decode("utf-8") if isinstance(line, bytes) else line
                         data = line
 
                         # Skip empty lines
+                        # 跳过空行
                         if not data.strip():
                             continue
 
                         # "data:" is the prefix for each event
+                        # 非data开头的字符跳过
                         if not data.startswith("data:"):
                             continue
 
                         # Remove the prefix
+                        # 去除结尾
                         data = data[len("data:") :].strip()
 
                         try:
+                            # 转换为json和数据过滤
                             data = json.loads(data)
 
                             data, _ = await process_filter_functions(
@@ -1488,6 +1503,7 @@ async def process_chat_response(
                                     )
                                 else:
                                     choices = data.get("choices", [])
+                                    # 处理用量消息
                                     if not choices:
                                         usage = data.get("usage", {})
                                         if usage:
@@ -1500,10 +1516,11 @@ async def process_chat_response(
                                                 }
                                             )
                                         continue
-
+                                    # 处理数据内容
                                     delta = choices[0].get("delta", {})
+                                    # 获取工具调用信息
                                     delta_tool_calls = delta.get("tool_calls", None)
-
+                                    # 工具调用信息处理
                                     if delta_tool_calls:
                                         for delta_tool_call in delta_tool_calls:
                                             tool_call_index = delta_tool_call.get(
@@ -1541,7 +1558,7 @@ async def process_chat_response(
                                                         ]["function"][
                                                             "arguments"
                                                         ] += delta_arguments
-
+                                    # 数据内容
                                     value = delta.get("content")
 
                                     if value:
@@ -1558,7 +1575,7 @@ async def process_chat_response(
                                         content_blocks[-1]["content"] = (
                                             content_blocks[-1]["content"] + value
                                         )
-
+                                        # 处理推理信息
                                         if DETECT_REASONING:
                                             content, content_blocks, _ = (
                                                 tag_content_handler(
@@ -1568,7 +1585,7 @@ async def process_chat_response(
                                                     content_blocks,
                                                 )
                                             )
-
+                                        # 处理解释信息
                                         if DETECT_CODE_INTERPRETER:
                                             content, content_blocks, end = (
                                                 tag_content_handler(
@@ -1591,7 +1608,7 @@ async def process_chat_response(
                                                     content_blocks,
                                                 )
                                             )
-
+                                        # 消息保存
                                         if ENABLE_REALTIME_CHAT_SAVE:
                                             # Save message in the database
                                             Chats.upsert_message_to_chat_by_id_and_message_id(
@@ -1609,7 +1626,7 @@ async def process_chat_response(
                                                     content_blocks
                                                 ),
                                             }
-
+                                # 发送数据消息
                                 await event_emitter(
                                     {
                                         "type": "chat:completion",
@@ -1617,15 +1634,17 @@ async def process_chat_response(
                                     }
                                 )
                         except Exception as e:
+                            # 结束
                             done = "data: [DONE]" in line
                             if done:
                                 pass
                             else:
                                 log.debug("Error: ", e)
                                 continue
-
+                    # 包含了解析的消息内容
                     if content_blocks:
                         # Clean up the last text block
+                        # TODO text消息才执行清理
                         if content_blocks[-1]["type"] == "text":
                             content_blocks[-1]["content"] = content_blocks[-1][
                                 "content"
@@ -1647,12 +1666,12 @@ async def process_chat_response(
 
                     if response.background:
                         await response.background()
-
+                # 处理返回消息
                 await stream_body_handler(response)
 
                 MAX_TOOL_CALL_RETRIES = 5
                 tool_call_retries = 0
-
+                # 工具调用消息处理
                 while len(tool_calls) > 0 and tool_call_retries < MAX_TOOL_CALL_RETRIES:
                     tool_call_retries += 1
 
@@ -1759,7 +1778,7 @@ async def process_chat_response(
                     except Exception as e:
                         log.debug(e)
                         break
-
+                # 代码处理
                 if DETECT_CODE_INTERPRETER:
                     MAX_RETRIES = 5
                     retries = 0
@@ -1955,6 +1974,7 @@ async def process_chat_response(
 
                 if not ENABLE_REALTIME_CHAT_SAVE:
                     # Save message in the database
+                    # 保存消息内容
                     Chats.upsert_message_to_chat_by_id_and_message_id(
                         metadata["chat_id"],
                         metadata["message_id"],
@@ -1964,6 +1984,7 @@ async def process_chat_response(
                     )
 
                 # Send a webhook notification if the user is not active
+                # web hook消息发送
                 if get_active_status_by_user_id(user.id) is None:
                     webhook_url = Users.get_user_webhook_url_by_id(user.id)
                     if webhook_url:
@@ -1985,7 +2006,7 @@ async def process_chat_response(
                         "data": data,
                     }
                 )
-
+                # 
                 await background_tasks_handler()
             except asyncio.CancelledError:
                 log.warning("Task was cancelled!")
@@ -2005,15 +2026,17 @@ async def process_chat_response(
                 await response.background()
 
         # background_tasks.add_task(post_response_handler, response, events)
+        # 使用任务处理返回和事件
         task_id, _ = create_task(post_response_handler(response, events))
         return {"status": True, "task_id": task_id}
 
     else:
         # Fallback to the original response
+        # 包装流处理
         async def stream_wrapper(original_generator, events):
             def wrap_item(item):
                 return f"data: {item}\n\n"
-
+            # 过滤事件，并以sse的形式返回事件
             for event in events:
                 event, _ = await process_filter_functions(
                     request=request,
@@ -2025,7 +2048,8 @@ async def process_chat_response(
 
                 if event:
                     yield wrap_item(json.dumps(event))
-
+                    
+            # 过滤事件，并以sse的形式返每条数据
             async for data in original_generator:
                 data, _ = await process_filter_functions(
                     request=request,
@@ -2038,6 +2062,9 @@ async def process_chat_response(
                 if data:
                     yield data
 
+        # 在没有事件处理器的情况下处理消息
+        # body_iterator是StreamingResponse
+        # response.background: 关闭session和response
         return StreamingResponse(
             stream_wrapper(response.body_iterator, events),
             headers=dict(response.headers),
