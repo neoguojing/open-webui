@@ -272,6 +272,8 @@ async def generate_chat_completion(
             else:
                 return convert_response_ollama_to_openai(response)
         else:
+            # 调用openai的接口
+            # 返回的是一个StreamingResponse 对象
             return await generate_openai_chat_completion(
                 request=request,
                 form_data=form_data,

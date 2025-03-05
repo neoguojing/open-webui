@@ -619,9 +619,12 @@ async def process_chat_payload(request, form_data, metadata, user, model):
     form_data = apply_params_to_form_data(form_data, model)
     log.debug(f"form_data: {form_data}")
 
+    # 实现实时聊天功能，允许服务器向客户端发送实时更新，并维护聊天消息的状态和内容
     event_emitter = get_event_emitter(metadata)
+    # 不同于event_emitter，event_call发送消息后需要等待客户返回
     event_call = get_event_call(metadata)
 
+    # 拼装额外参数
     extra_params = {
         "__event_emitter__": event_emitter,
         "__event_call__": event_call,
@@ -645,6 +648,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
     else:
         models = request.app.state.MODELS
 
+    # 获取任务管理的model
     task_model_id = get_task_model_id(
         form_data["model"],
         request.app.state.config.TASK_MODEL,
@@ -654,10 +658,12 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 
     events = []
     sources = []
-
+    # 获取最后一条用户消息
     user_message = get_last_user_message(form_data["messages"])
+    # 知识库控制
     model_knowledge = model.get("info", {}).get("meta", {}).get("knowledge", False)
 
+    # 发送知识库消息
     if model_knowledge:
         await event_emitter(
             {
@@ -670,6 +676,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
             }
         )
 
+        # 抽取知识库管理的文档
         knowledge_files = []
         for item in model_knowledge:
             if item.get("collection_name"):
@@ -692,6 +699,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
             else:
                 knowledge_files.append(item)
 
+        # 填充知识库文档
         files = form_data.get("files", [])
         files.extend(knowledge_files)
         form_data["files"] = files
@@ -717,6 +725,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
     except Exception as e:
         raise Exception(f"Error: {e}")
 
+    # 特殊请求处理：web检索，图片生成和代码解释
     features = form_data.pop("features", None)
     if features:
         if "web_search" in features and features["web_search"]:
@@ -755,7 +764,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 
     tool_ids = metadata.get("tool_ids", None)
     log.debug(f"{tool_ids=}")
-
+    # 工具处理
     if tool_ids:
         # If tool_ids field is present, then get the tools
         tools = get_tools(
@@ -790,12 +799,14 @@ async def process_chat_payload(request, form_data, metadata, user, model):
                 log.exception(e)
 
     try:
+        # 知识库请求，flag为引用
         form_data, flags = await chat_completion_files_handler(request, form_data, user)
         sources.extend(flags.get("sources", []))
     except Exception as e:
         log.exception(e)
 
     # If context is not empty, insert it into the messages
+    # 知识库上下文处理
     if len(sources) > 0:
         context_string = ""
         for source_idx, source in enumerate(sources):
@@ -961,7 +972,8 @@ async def process_chat_response(
                             )
                         except Exception as e:
                             pass
-
+    
+    # 时间发生器初始化
     event_emitter = None
     event_caller = None
     if (
@@ -976,6 +988,7 @@ async def process_chat_response(
         event_caller = get_event_call(metadata)
 
     # Non-streaming response
+    # 非流式消息处理
     if not isinstance(response, StreamingResponse):
         if event_emitter:
             if "selected_model_id" in response:
@@ -1013,6 +1026,7 @@ async def process_chat_response(
                     )
 
                     # Save message in the database
+                    # 消息保存
                     Chats.upsert_message_to_chat_by_id_and_message_id(
                         metadata["chat_id"],
                         metadata["message_id"],
@@ -1022,6 +1036,7 @@ async def process_chat_response(
                     )
 
                     # Send a webhook notification if the user is not active
+                    # 发送到webhook
                     if get_active_status_by_user_id(user.id) is None:
                         webhook_url = Users.get_user_webhook_url_by_id(user.id)
                         if webhook_url:
@@ -1041,15 +1056,18 @@ async def process_chat_response(
 
             return response
         else:
+            # 直接返回消息
             return response
 
     # Non standard response
+    # 非标准
     if not any(
         content_type in response.headers["Content-Type"]
         for content_type in ["text/event-stream", "application/x-ndjson"]
     ):
         return response
 
+    # 额外消息组装
     extra_params = {
         "__event_emitter__": event_emitter,
         "__event_call__": event_caller,
@@ -1066,10 +1084,12 @@ async def process_chat_response(
     filter_ids = get_sorted_filter_ids(form_data.get("model"))
 
     # Streaming response
+    # 流式返回
     if event_emitter and event_caller:
+        # 有时间发生器的情况
         task_id = str(uuid4())  # Create a unique task ID.
         model_id = form_data.get("model", "")
-
+        # 更新消息状态
         Chats.upsert_message_to_chat_by_id_and_message_id(
             metadata["chat_id"],
             metadata["message_id"],
@@ -2005,6 +2025,7 @@ async def process_chat_response(
                 await response.background()
 
         # background_tasks.add_task(post_response_handler, response, events)
+        # 后台任务处理
         task_id, _ = create_task(post_response_handler(response, events))
         return {"status": True, "task_id": task_id}
 

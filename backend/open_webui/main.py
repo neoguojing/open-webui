@@ -1048,8 +1048,10 @@ async def chat_completion(
         )
 
     try:
+        # 处理和分发对话请求
+        # 返回一个StreamingResponse对象
         response = await chat_completion_handler(request, form_data, user)
-
+        # 对话返回处理
         return await process_chat_response(
             request, response, form_data, user, events, metadata, tasks
         )

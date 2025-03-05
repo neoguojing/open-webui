@@ -586,6 +586,7 @@ async def generate_chat_completion(
     idx = 0
 
     payload = {**form_data}
+    # 此处移除了metadata
     metadata = payload.pop("metadata", None)
 
     model_id = form_data.get("model")
@@ -598,10 +599,13 @@ async def generate_chat_completion(
             model_id = model_info.base_model_id
 
         params = model_info.params.model_dump()
+        # 设置模型相关参数
         payload = apply_model_params_to_body_openai(params, payload)
+        # 设置系统相关参数
         payload = apply_model_system_prompt_to_body(params, payload, metadata, user)
 
         # Check if user has access to the model
+        # 用户是否有访问该模型的权限
         if not bypass_filter and user.role == "user":
             if not (
                 user.id == model_info.user_id
@@ -620,6 +624,7 @@ async def generate_chat_completion(
                 detail="Model not found",
             )
 
+    # 获取指定用户的所有模型，确定是否可以访问该模型
     await get_all_models(request, user=user)
     model = request.app.state.OPENAI_MODELS.get(model_id)
     if model:
@@ -651,10 +656,13 @@ async def generate_chat_completion(
             "role": user.role,
         }
 
+    # 获取openai的url和key
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
     key = request.app.state.config.OPENAI_API_KEYS[idx]
 
     # Fix: o1,o3 does not support the "max_tokens" parameter, Modify "max_tokens" to "max_completion_tokens"
+    # o1和o3的参数不同
+    # 参数兼容性设置
     is_o1_o3 = payload["model"].lower().startswith(("o1", "o3-"))
     if is_o1_o3:
         payload = openai_o1_o3_handler(payload)
@@ -679,7 +687,7 @@ async def generate_chat_completion(
         session = aiohttp.ClientSession(
             trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
         )
-
+        # 发送请求
         r = await session.request(
             method="POST",
             url=f"{url}/chat/completions",
@@ -709,8 +717,10 @@ async def generate_chat_completion(
         )
 
         # Check if response is SSE
+        # 流式请求
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
+            # cleanup_response 在请求结束后，关闭resp和session
             return StreamingResponse(
                 r.content,
                 status_code=r.status,
@@ -720,6 +730,7 @@ async def generate_chat_completion(
                 ),
             )
         else:
+            # 非流式请求
             try:
                 response = await r.json()
             except Exception as e:
