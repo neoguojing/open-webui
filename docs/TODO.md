@@ -25,9 +25,35 @@
 
 ## 知识库检索处理
 - 调试参数
+- 相关入口
+- process_chat_payload
+- chat_completion_files_handler
+- generate_queries
+- 流程： 获取model信息，在处理payload的时候，检测到模型关联了知识库，则收集知识库信息，线请求关联知识，然后拼接请求，然后实现聊天
+- 数据格式：
+- model.get("info", {}).get("meta", {}).get("knowledge", False)
+- knowledge 格式 {
+    "name": item.get("name"),
+    "type": "collection",
+    "collection_names": item.get("collection_names"),
+    "legacy": True,
+}
+- form_data["files"]
+- form_data["metadata"]["files"]
 
 ## web检索处理
 - 调试参数
+- process_chat_payload
+- chat_completion_files_handler
+- 数据格式：
+- form_data["features"]["web_search"]
+- form_data["type"] = "web_search"
+- openai 请求参数："metadata": {
+            **(request.state.metadata if hasattr(request.state, "metadata") else {}),
+            "task": "query_generation",
+            "task_body": form_data,
+            "chat_id": form_data.get("chat_id", None),
+        }
 
 ## 推理处理
 - 调试参数
