@@ -59,6 +59,14 @@
 - 调试参数
 
 ## openweb ui
+## 消息事件处理类
+- chatCompletionEventHandler
+
+## 聊天消息处理
+- chatCompletedHandler
+- 此处讲后端消息返回，并转换为MessageType
+- TODO: 依据不同的对象填充不同类型的消息，特别是图片和音频消息
+- TODO： python后端是否对agi的消息做了额外的处理
 ### 端消息类型 需要适配
 ```
 interface MessageType {
