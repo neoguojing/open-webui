@@ -57,3 +57,58 @@
 
 ## 推理处理
 - 调试参数
+
+## openweb ui
+### 端消息类型 需要适配
+```
+interface MessageType {
+		id: string;
+		model: string;
+		content: string;
+		files?: { type: string; url: string }[];
+		timestamp: number;
+		role: string;
+		statusHistory?: {
+			done: boolean;
+			action: string;
+			description: string;
+			urls?: string[];
+			query?: string;
+		}[];
+		status?: {
+			done: boolean;
+			action: string;
+			description: string;
+			urls?: string[];
+			query?: string;
+		};
+		done: boolean;
+		error?: boolean | { content: string };
+		sources?: string[];
+		code_executions?: {
+			uuid: string;
+			name: string;
+			code: string;
+			language?: string;
+			result?: {
+				error?: string;
+				output?: string;
+				files?: { name: string; url: string }[];
+			};
+		}[];
+		info?: {
+			openai?: boolean;
+			prompt_tokens?: number;
+			completion_tokens?: number;
+			total_tokens?: number;
+			eval_count?: number;
+			eval_duration?: number;
+			prompt_eval_count?: number;
+			prompt_eval_duration?: number;
+			total_duration?: number;
+			load_duration?: number;
+			usage?: unknown;
+		};
+		annotation?: { type: string; rating: number };
+	}
+```
