@@ -1057,6 +1057,7 @@ async def process_chat_response(
                         metadata["message_id"],
                         {
                             "content": content,
+                            "files": files,
                         },
                     )
 

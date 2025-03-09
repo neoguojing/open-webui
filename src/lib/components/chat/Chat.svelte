@@ -839,6 +839,7 @@
 				id: m.id,
 				role: m.role,
 				content: m.content,
+				files: m.files? m.files : undefined,
 				info: m.info ? m.info : undefined,
 				timestamp: m.timestamp,
 				...(m.usage ? { usage: m.usage } : {}),
@@ -1076,7 +1077,7 @@
 	};
 
 	const chatCompletionEventHandler = async (data, message, chatId) => {
-		const { id, done, choices, content, sources, selected_model_id, error, usage } = data;
+		const { id, done, choices, content, sources, selected_model_id, error, usage ,files} = data;
 
 		if (error) {
 			await handleOpenAIError(error, message);
@@ -1086,7 +1087,10 @@
 			message.sources = sources;
 		}
 
-		if (choices) {
+		if (files) {
+			message.files = files;
+		}
+ 		if (choices) {
 			if (choices[0]?.message?.content) {
 				// Non-stream response
 				message.content += choices[0]?.message?.content;
@@ -1199,7 +1203,8 @@
 				new CustomEvent('chat:finish', {
 					detail: {
 						id: message.id,
-						content: message.content
+						content: message.content,
+						files: message.files
 					}
 				})
 			);
