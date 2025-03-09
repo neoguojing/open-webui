@@ -12,6 +12,59 @@
 ## 聊天适配
 - 通用流程
 - /api/chat/completions
+- 请求
+```
+{
+	"stream": true,
+	"model": "agi",
+	"messages": [{
+		"role": "user",
+		"content": "hello"
+	}, {
+		"role": "assistant",
+		"content": "你好，有什么可以帮助你的吗？如果你有关于科学文章、股票信息或者图像生成的问题，随时告诉我。"
+	}, {
+		"role": "user",
+		"content": "你的名字"
+	}],
+	"params": {},
+	"features": {
+		"image_generation": false,
+		"code_interpreter": false,
+		"web_search": false
+	},
+	"variables": {
+		"{{USER_NAME}}": "neo",
+		"{{USER_LOCATION}}": "Unknown",
+		"{{CURRENT_DATETIME}}": "2025-03-09 19:24:42",
+		"{{CURRENT_DATE}}": "2025-03-09",
+		"{{CURRENT_TIME}}": "19:24:42",
+		"{{CURRENT_WEEKDAY}}": "Sunday",
+		"{{CURRENT_TIMEZONE}}": "Asia/Shanghai",
+		"{{USER_LANGUAGE}}": "zh-CN"
+	},
+	"model_item": {
+		"id": "agi",
+		"object": "model",
+		"created": 1677654321,
+		"owned_by": "openai",
+		"name": "agi",
+		"openai": {
+			"id": "agi",
+			"object": "model",
+			"created": 1677654321,
+			"owned_by": "neo"
+		},
+		"urlIdx": 0,
+		"actions": []
+	},
+	"session_id": "DTMcwB0v5KkvcVkIAAAB",
+	"chat_id": "6d57d18f-be8a-4430-85ae-5a882bfb8852",
+	"id": "41f5fdfd-d0aa-4d24-8925-fb61bdede70a"
+}
+返回
+{"status":true,"task_id":"e2e89373-022b-4344-8dbc-e045633e0332"}
+```
 - 统一调用chat.generate_chat_completion == chat_completion_handler 处理请求
 - chat.generate_chat_completion：会处理openai 和 ollama请求 ；请求以openai 的api格式为准
 - 以上分别调用openai.generate_chat_completion 或 ollama.generate_chat_completion 完成实际请求
@@ -63,6 +116,7 @@
 - chatCompletionEventHandler
 
 ## 聊天消息处理
+- chatEventHandler
 - chatCompletedHandler
 - 此处讲后端消息返回，并转换为MessageType
 - TODO: 依据不同的对象填充不同类型的消息，特别是图片和音频消息
