@@ -872,6 +872,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 async def handle_agi_response_content(ret_content):
     files = []
     content = ""
+    citations = []
     if isinstance(ret_content,str):
         content = ret_content
     elif isinstance(ret_content,list):
@@ -880,6 +881,7 @@ async def handle_agi_response_content(ret_content):
     if isinstance(ret_content,dict):
         if ret_content.get("type") == "text":
             content = ret_content.get("text","")
+            citations = ret_content.get("citations","")
         elif ret_content.get("type") == "image":
             image_content = ret_content.get("image","")
             files.append({"type": "image","url": image_content})
@@ -889,7 +891,7 @@ async def handle_agi_response_content(ret_content):
             audio_text = ret_content.get("text","")
             files.append({"type": "audio","url": audio_content})
             content = f'<audio controls><source src="{audio_content}" type="audio/mpeg">{audio_text}</audio>'
-    return content,files
+    return content,files,citations
 
 async def process_chat_response(
     request, response, form_data, user, events, metadata, tasks
@@ -1030,7 +1032,7 @@ async def process_chat_response(
             if response.get("choices", [])[0].get("message", {}).get("content"):
                 content = response["choices"][0]["message"]["content"]
                 # 新增的适配agi的代码
-                content,files = await handle_agi_response_content(content)
+                content,files,citations = await handle_agi_response_content(content)
                 if content:
                     
                     await event_emitter(
@@ -1616,7 +1618,7 @@ async def process_chat_response(
                                     # 数据内容
                                     value = delta.get("content")
                                     # 新增的适配agi的代码
-                                    value,files = await handle_agi_response_content(value)
+                                    value,files,citations = await handle_agi_response_content(value)
                                     # 执行内容拼接
                                     if value or files:
                                         content = f"{content}{value}"
