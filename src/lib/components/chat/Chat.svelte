@@ -866,7 +866,11 @@
 						...(history.messages[message.id].content !== message.content
 							? { originalContent: history.messages[message.id].content }
 							: {}),
-						...message
+						...message,
+						files: [
+							...(history.messages[message.id]?.files || []), // 旧的文件列表
+							...(message.files || []) // 新增的文件列表
+						]
 					};
 				}
 			}

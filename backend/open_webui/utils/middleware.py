@@ -868,6 +868,7 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 # 处理agi返回的消息，以适配openwebui
 # 返回text，则直接填充content
 # 返回图片和语音等，则填充files
+# content 改为markdown的模式，期望能更加方便的支持图片和音频展示
 async def handle_agi_response_content(ret_content):
     files = []
     content = ""
@@ -880,11 +881,14 @@ async def handle_agi_response_content(ret_content):
         if ret_content.get("type") == "text":
             content = ret_content.get("text","")
         elif ret_content.get("type") == "image":
-            files.append({"type": "image","url": ret_content.get("image","")})
-            content = ret_content.get("text","一张图片")
+            image_content = ret_content.get("image","")
+            files.append({"type": "image","url": image_content})
+            content = f"![Generated Image]({image_content})\n"
         elif ret_content.get("type") == "audio":
-            files.append({"type": "audio","url": ret_content.get("audio","")})
-            content = ret_content.get("text","")
+            audio_content = ret_content.get("audio","")
+            audio_text = ret_content.get("text","")
+            files.append({"type": "audio","url": audio_content})
+            content = f'<audio controls><source src="{audio_content}" type="audio/mpeg">{audio_text}</audio>'
     return content,files
 
 async def process_chat_response(
