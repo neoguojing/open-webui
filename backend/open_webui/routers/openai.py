@@ -686,7 +686,10 @@ async def generate_chat_completion(
     elif files:
         # TODO 
         for f in files:
-            db_ids.append(f.name)
+            if f.get("id"):
+                db_ids.append(f.get("id"))
+            if f.get("collection_names"):
+                db_ids.extend(f.get("collection_names"))
         features = "rag"
 
     payload["extra_body"] = {"db_ids":db_ids,"need_speech": need_speech,"feature": feature}

@@ -2,10 +2,9 @@
 
 ## 任务1
 - 使用agi服务直接替换openai，要研究兼容性，参见聊天的主要入口；争议：没人会在这个平台直接使用openai，可以改动尽量避免
-- 文生图： 图片展示 DONE
-- 适配语音输入
-- 适配图片和文件输入
-- 适配图片输出
+- 适配语音输入和输出: 需调试
+- 适配图片和文件输入: 需调试
+- 适配图片输出: DONE
 - web检索: test
 - 知识库检索： test
 - 推理
@@ -86,11 +85,17 @@
 - 流程： 获取model信息，在处理payload的时候，检测到模型关联了知识库，则收集知识库信息，线请求关联知识，然后拼接请求，然后实现聊天
 - 数据格式：
 - model.get("info", {}).get("meta", {}).get("knowledge", False)
-- knowledge 格式 {
+- knowledge 格式 
+- {
     "name": item.get("name"),
     "type": "collection",
     "collection_names": item.get("collection_names"),
     "legacy": True,
+}
+{
+	"id": item.get("collection_name"),
+	"name": item.get("name"),
+	"legacy": True,
 }
 - form_data["files"]
 - form_data["metadata"]["files"]
