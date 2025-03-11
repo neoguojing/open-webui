@@ -3,9 +3,10 @@
 ## 任务1
 - 使用agi服务直接替换openai，要研究兼容性，参见聊天的主要入口；争议：没人会在这个平台直接使用openai，可以改动尽量避免
 - 适配语音输入和输出: 需调试
-- 适配图片和文件输入: 需调试
+- 适配图片: DONE
+- 文件输入
 - 适配图片输出: DONE
-- web检索: test
+- web检索: 引用需要调整
 - 知识库检索： test
 - 推理
 
@@ -113,7 +114,22 @@
             "task_body": form_data,
             "chat_id": form_data.get("chat_id", None),
         }
-
+- 流程：
+- - 利用大模型自动补全问题
+- - 分析历史数据： web
+- - 符合检索结果 list
+```
+{
+		'description': '俄乌战争是21世纪以来影响最为深远的国际冲突之一。文章从历史背景、战争的直接影响、国际社会的反应及全球影响等方面展开论述，深刻剖析了俄乌战争在政治、经济、安全、能源、粮食等领域的连锁效应。',
+		'embedding_config': '{"engine": "ollama", "model": "bge-m3:latest"}',
+		'language': 'zh-CN',
+		'source': 'https://news.qq.com/rain/a/20250108A01LEN00',
+		'start_index': 3,
+		'title': '俄乌战争的根源、现状与影响：一场改变世界格局的冲突_腾讯新闻',
+		'score': 0.6120820045471191
+	}
+```
+- - 结合上下文，使用system格式的消息请求llm
 ## 推理处理
 - 调试参数
 

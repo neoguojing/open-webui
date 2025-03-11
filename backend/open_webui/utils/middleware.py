@@ -729,9 +729,10 @@ async def process_chat_payload(request, form_data, metadata, user, model):
     features = form_data.pop("features", None)
     if features:
         if "web_search" in features and features["web_search"]:
-            form_data = await chat_web_search_handler(
-                request, form_data, extra_params, user
-            )
+            # form_data = await chat_web_search_handler(
+            #     request, form_data, extra_params, user
+            # )
+            pass
 
         if "image_generation" in features and features["image_generation"]:
             form_data = await chat_image_generation_handler(

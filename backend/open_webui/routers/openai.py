@@ -675,6 +675,8 @@ async def generate_chat_completion(
     if "max_tokens" in payload and "max_completion_tokens" in payload:
         del payload["max_tokens"]
 
+    # if metadata["task"] == 'query_generation':
+    #     return 
     # agi适配:设置其他参数
     need_speech = False
     feature = "agent"
@@ -692,9 +694,19 @@ async def generate_chat_completion(
                 db_ids.extend(f.get("collection_names"))
         features = "rag"
 
-    payload["extra_body"] = {"db_ids":db_ids,"need_speech": need_speech,"feature": feature}
+    # payload["extra_body"] = {"db_ids":db_ids,"need_speech": need_speech,"feature": feature}
+    payload["feature"] = feature
+    payload["db_ids"] = db_ids
+    payload["need_speech"] = need_speech
     payload["user"] = user.id
     payload["conversation_id"] = metadata.get("chat_id", "")
+    
+    if isinstance(payload["messages"][-1]["content"],list):
+        for item in payload["messages"][-1]["content"]:
+            if item.get("type") == "image_url":
+                item["type"] = "image"
+                item["image"] = item["image_url"]["url"]
+                item["image_url"] = ""
     # Convert the modified body back to JSON
     payload = json.dumps(payload)
 
