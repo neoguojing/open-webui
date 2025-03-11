@@ -675,6 +675,23 @@ async def generate_chat_completion(
     if "max_tokens" in payload and "max_completion_tokens" in payload:
         del payload["max_tokens"]
 
+    # agi适配:设置其他参数
+    need_speech = False
+    feature = "agent"
+    db_ids = []
+    features = metadata.get("features", None)
+    files = metadata.get("files", None)
+    if features and "web_search" in features and features["web_search"]:
+        feature = "web"
+    elif files:
+        # TODO 
+        for f in files:
+            db_ids.append(f.name)
+        features = "rag"
+
+    payload["extra_body"] = {"db_ids":db_ids,"need_speech": need_speech,"feature": feature}
+    payload["user"] = user.id
+    payload["conversation_id"] = metadata.get("chat_id", "")
     # Convert the modified body back to JSON
     payload = json.dumps(payload)
 

@@ -1495,6 +1495,7 @@ async def process_chat_response(
             try:
                 # 发送和保存事件
                 for event in events:
+                    # 此处事件包含source
                     await event_emitter(
                         {
                             "type": "chat:completion",
