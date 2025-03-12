@@ -76,8 +76,113 @@
 
 ## 图片和文件输入处理
 - 调研文件上传端口和输入
+- api/v1/files/ file.py ,文件保存到了存储里
+- - 返回
+```
+{
+    "id": "017e1bf1-5f91-4d95-8789-fae28cc5e593",
+    "user_id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+    "hash": "3e11c6cbdad114f4807614b25e6e94a83378905f091130c277c68178e0e327df",
+    "filename": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+    "data": {
+        "content": "电子发票(普通发票) 发票号码:\n开票日期:\n购\n买\n方\n信\n息统一社会信用代码 /纳税人识别号:销\n售\n方\n信\n息统一社会信用代码 /纳税人识别号:名称: 名称:\n项目名称 规格型号 单 位数 量单 价金 额税率/征收率 税 额\n合计\n价税合计(大写) (小写)\n备\n注\n开票人:24312000000280517071\n2024年09月12日\n上海商汤科技开发有限公司\n91310115MA1HB3LY4M上海椒客多餐饮服务有限公司\n91310105MACBK27P2A\n¥353.47 ¥3.53\n叁佰伍拾柒圆整 ¥357.00\n李小育\n李小育*餐饮服务 *餐饮服务 1% 353.47 3.53 353.47 1"
+    },
+    "meta": {
+        "name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+        "content_type": "application/pdf",
+        "size": 83703,
+        "data": {},
+        "collection_name": "file-017e1bf1-5f91-4d95-8789-fae28cc5e593"
+    },
+    "created_at": 1741759604,
+    "updated_at": 1741759604
+}
+```
+- 基于文件的聊天请求格式
+```
+{
+	"stream": true,
+	"model": "qwq:latest",
+	"messages": [ {
+		"role": "user",
+		"content": "改文档说了啥？"
+	}],
+	"params": {},
+	"files": [{
+		"type": "file",
+		"file": {
+			"id": "017e1bf1-5f91-4d95-8789-fae28cc5e593",
+			"user_id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+			"hash": "3e11c6cbdad114f4807614b25e6e94a83378905f091130c277c68178e0e327df",
+			"filename": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+			"data": {
+				"content": "电子发票(普通发票) 发票号码:\n开票日期:\n购\n买\n方\n信\n息统一社会信用代码 /纳税人识别号:销\n售\n方\n信\n息统一社会信用代码 /纳税人识别号:名称: 名称:\n项目名称 规格型号 单 位数 量单 价金 额税率/征收率 税 额\n合计\n价税合计(大写) (小写)\n备\n注\n开票人:24312000000280517071\n2024年09月12日\n上海商汤科技开发有限公司\n91310115MA1HB3LY4M上海椒客多餐饮服务有限公司\n91310105MACBK27P2A\n¥353.47 ¥3.53\n叁佰伍拾柒圆整 ¥357.00\n李小育\n李小育*餐饮服务 *餐饮服务 1% 353.47 3.53 353.47 1"
+			},
+			"meta": {
+				"name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+				"content_type": "application/pdf",
+				"size": 83703,
+				"data": {},
+				"collection_name": "file-017e1bf1-5f91-4d95-8789-fae28cc5e593"
+			},
+			"created_at": 1741759604,
+			"updated_at": 1741759604
+		},
+		"id": "017e1bf1-5f91-4d95-8789-fae28cc5e593",
+		"url": "http://10.8.10.82:8090/api/v1/files/017e1bf1-5f91-4d95-8789-fae28cc5e593",
+		"name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+		"collection_name": "file-017e1bf1-5f91-4d95-8789-fae28cc5e593",
+		"status": "uploaded",
+		"size": 83703,
+		"error": "",
+		"itemId": "02da21dd-e1b5-4fbb-9c86-8c15a220b32b"
+	}],
+	"features": {
+		"image_generation": false,
+		"code_interpreter": false,
+		"web_search": false
+	},
+	"variables": {
+		"{{USER_NAME}}": "neo",
+		"{{USER_LOCATION}}": "Unknown",
+		"{{CURRENT_DATETIME}}": "2025-03-12 14:14:15",
+		"{{CURRENT_DATE}}": "2025-03-12",
+		"{{CURRENT_TIME}}": "14:14:15",
+		"{{CURRENT_WEEKDAY}}": "Wednesday",
+		"{{CURRENT_TIMEZONE}}": "Asia/Shanghai",
+		"{{USER_LANGUAGE}}": "zh-CN"
+	},
+	"model_item": {
+		"id": "qwq:latest",
+		"name": "qwq:latest",
+		"object": "model",
+		"created": 1741759127,
+		"owned_by": "ollama",
+		"ollama": {
+			"name": "qwq:latest",
+			"model": "qwq:latest",
+			"modified_at": "2025-03-12T13:20:21.664248788+08:00",
+			"size": 19851349390,
+			"digest": "cc1091b0e276012ba4c1662ea103be2c87a1543d2ee435eb5715b37b9b680d27",
+			"details": {
+				"parent_model": "",
+				"format": "gguf",
+				"family": "qwen2",
+				"families": ["qwen2"],
+				"parameter_size": "32.8B",
+				"quantization_level": "Q4_K_M"
+			},
+			"urls": [0]
+		},
+		"actions": []
+	},
+	"session_id": "-V2VOBs8OYpzx4CbAAAB",
+	"chat_id": "9232c3bb-c7e0-44ac-98cd-b13c54bd5d02",
+	"id": "d7b1ae20-6e8c-45d6-b9ff-f56ed506cc8b"
+}
+```
 
-## 知识库检索处理
+## 知识库
 - 调试参数
 - 相关入口
 - process_chat_payload
@@ -101,6 +206,69 @@
 - form_data["files"]
 - form_data["metadata"]["files"]
 
+- 引用类型：
+- {
+    "sources": [
+        {
+            "source": {
+                "id": "3242bbd4-4a09-47d0-a704-dcbd5d665774",
+                "user_id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+                "name": "test",
+                "description": "个人文档",
+                "meta": null,
+                "access_control": null,
+                "created_at": 1741763827,
+                "updated_at": 1741775216,
+                "user": {
+                    "id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+                },
+                "files": [
+                    {
+                        "id": "eb495463-9977-45d6-abd5-50a6365cacac",
+                        "meta": {
+                            "name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+                            "content_type": "application/pdf",
+                            "size": 83703,
+                            "data": {},
+                            "collection_name": "3242bbd4-4a09-47d0-a704-dcbd5d665774"
+                        },
+                        "created_at": 1741775216,
+                        "updated_at": 1741775216
+                    }
+                ],
+                "type": "collection"
+            },
+            "document": [""            ],
+            "metadata": [
+                {
+                    "author": "China Tax",
+                    "created_by": "50e5febb-e4d7-4caa-9965-751160245ab6",
+                    "creationdate": "D:20240912212111",
+                    "creator": "Suwell",
+                    "embedding_config": "{\"engine\": \"\", \"model\": \"sentence-transformers/all-MiniLM-L6-v2\"}",
+                    "file_id": "eb495463-9977-45d6-abd5-50a6365cacac",
+                    "hash": "3e11c6cbdad114f4807614b25e6e94a83378905f091130c277c68178e0e327df",
+                    "moddate": "D:20240912212111",
+                    "name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+                    "ofd2pdflib": "ofd2pdflib/2.2.24.0111.1407",
+                    "page": 0,
+                    "page_label": "1",
+                    "producer": "Suwell OFD convertor",
+                    "source": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+                    "start_index": 0,
+                    "total_pages": 1
+                }
+            ],
+            "distances": [
+                0.6697336820511759
+            ]
+        }
+    ]
+}
+### 知识库管理 knowledge.py
+- create 创建知识库
+- / 列举知识库
+- add 添加文件到知识库
 ## web检索处理
 - 调试参数
 - process_chat_payload

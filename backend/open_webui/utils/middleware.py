@@ -882,7 +882,7 @@ async def handle_agi_response_content(ret_content):
     if isinstance(ret_content,dict):
         if ret_content.get("type") == "text":
             content = ret_content.get("text","")
-            citations = ret_content.get("citations","")
+            citations = ret_content.get("citations",[])
         elif ret_content.get("type") == "image":
             image_content = ret_content.get("image","")
             files.append({"type": "image","url": image_content})
@@ -1504,6 +1504,8 @@ async def process_chat_response(
                         }
                     )
 
+                    
+
                     # Save message in the database
                     Chats.upsert_message_to_chat_by_id_and_message_id(
                         metadata["chat_id"],
@@ -1621,6 +1623,13 @@ async def process_chat_response(
                                     value = delta.get("content")
                                     # 新增的适配agi的代码
                                     value,files,citations = await handle_agi_response_content(value)
+                                    # 发送sources的事件
+                                    await event_emitter(
+                                        {
+                                            "type": "chat:completion",
+                                            "data": {"sources": citations},
+                                        }
+                                    )
                                     # 执行内容拼接
                                     if value or files:
                                         content = f"{content}{value}"
