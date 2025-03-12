@@ -867,10 +867,11 @@
 							? { originalContent: history.messages[message.id].content }
 							: {}),
 						...message,
-						files: [
-							...(history.messages[message.id]?.files || []), // 旧的文件列表
-							...(message.files || []) // 新增的文件列表
-						]
+						// FR：此处，导致请求的图片变多了
+						// files: [
+						// 	...(history.messages[message.id]?.files || []), // 旧的文件列表
+						// 	...(message.files || []) // 新增的文件列表
+						// ]
 					};
 				}
 			}
@@ -1091,9 +1092,10 @@
 			message.sources = sources;
 		}
 
-		if (files) {
-			message.files = files;
-		}
+		// if (files) {
+		// 	message.files = files;
+		// }
+
  		if (choices) {
 			if (choices[0]?.message?.content) {
 				// Non-stream response
@@ -1208,7 +1210,7 @@
 					detail: {
 						id: message.id,
 						content: message.content,
-						files: message.files
+						// files: message.files
 					}
 				})
 			);

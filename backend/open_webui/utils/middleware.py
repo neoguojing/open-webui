@@ -1467,7 +1467,7 @@ async def process_chat_response(
                 {
                     "type": "text",
                     "content": content,
-                    "files": files,
+                    # "files": files,
                 }
             ]
 
@@ -1624,14 +1624,16 @@ async def process_chat_response(
                                     # 新增的适配agi的代码
                                     value,files,citations = await handle_agi_response_content(value)
                                     # 发送sources的事件
-                                    await event_emitter(
-                                        {
-                                            "type": "chat:completion",
-                                            "data": {"sources": citations},
-                                        }
-                                    )
+                                    if citations and len(citations) > 0:
+                                        await event_emitter(
+                                            {
+                                                "type": "chat:completion",
+                                                "data": {"sources": citations},
+                                            }
+                                        )
                                     # 执行内容拼接
-                                    if value or files:
+                                    # if value or files:
+                                    if value:
                                         content = f"{content}{value}"
 
                                         if not content_blocks:
@@ -1639,7 +1641,7 @@ async def process_chat_response(
                                                 {
                                                     "type": "text",
                                                     "content": "",
-                                                    "files" : files,
+                                                    # "files" : files,
                                                 }
                                             )
                                         # TODO 此处不能用空字符串 链接list消息,如图像和audio等
@@ -1696,7 +1698,7 @@ async def process_chat_response(
                                                 "content": serialize_content_blocks(
                                                     content_blocks
                                                 ),
-                                                "files" : files,
+                                                # "files" : files,
                                             }
                                 # 发送数据消息
                                 await event_emitter(
@@ -2042,7 +2044,7 @@ async def process_chat_response(
                     "done": True,
                     "content": serialize_content_blocks(content_blocks),
                     "title": title,
-                    "files": files,
+                    # "files": files,
                 }
 
                 if not ENABLE_REALTIME_CHAT_SAVE:

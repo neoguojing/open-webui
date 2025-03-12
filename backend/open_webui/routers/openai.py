@@ -706,7 +706,7 @@ async def generate_chat_completion(
             if item.get("type") == "image_url":
                 item["type"] = "image"
                 item["image"] = item["image_url"]["url"]
-                item["image_url"] = ""
+                item.pop("image_url",None)
     # Convert the modified body back to JSON
     payload = json.dumps(payload)
 
