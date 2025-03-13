@@ -43,7 +43,7 @@ from open_webui.routers.pipelines import (
     process_pipeline_inlet_filter,
     process_pipeline_outlet_filter,
 )
-
+from open_webui.routers.agi import handle_agi_response
 from open_webui.utils.webhook import post_webhook
 
 
@@ -866,34 +866,6 @@ async def process_chat_payload(request, form_data, metadata, user, model):
 
     return form_data, metadata, events
 
-# 处理agi返回的消息，以适配openwebui
-# 返回text，则直接填充content
-# 返回图片和语音等，则填充files
-# content 改为markdown的模式，期望能更加方便的支持图片和音频展示
-async def handle_agi_response_content(ret_content):
-    files = []
-    content = ""
-    citations = []
-    if isinstance(ret_content,str):
-        content = ret_content
-    elif isinstance(ret_content,list):
-        ret_content = ret_content[0]
-    
-    if isinstance(ret_content,dict):
-        if ret_content.get("type") == "text":
-            content = ret_content.get("text","")
-            citations = ret_content.get("citations",[])
-        elif ret_content.get("type") == "image":
-            image_content = ret_content.get("image","")
-            files.append({"type": "image","url": image_content})
-            content = f"![Generated Image]({image_content})\n"
-        elif ret_content.get("type") == "audio":
-            audio_content = ret_content.get("audio","")
-            audio_text = ret_content.get("text","")
-            files.append({"type": "audio","url": audio_content})
-            content = f'<audio controls><source src="{audio_content}" type="audio/mpeg">{audio_text}</audio>'
-    return content,files,citations
-
 async def process_chat_response(
     request, response, form_data, user, events, metadata, tasks
 ):
@@ -1033,7 +1005,7 @@ async def process_chat_response(
             if response.get("choices", [])[0].get("message", {}).get("content"):
                 content = response["choices"][0]["message"]["content"]
                 # 新增的适配agi的代码
-                content,files,citations = await handle_agi_response_content(content)
+                content,files,citations = await handle_agi_response(content)
                 if content:
                     
                     await event_emitter(
@@ -1622,7 +1594,7 @@ async def process_chat_response(
                                     # 数据内容
                                     value = delta.get("content")
                                     # 新增的适配agi的代码
-                                    value,files,citations = await handle_agi_response_content(value)
+                                    value,files,citations = await handle_agi_response(value)
                                     # 发送sources的事件
                                     if citations and len(citations) > 0:
                                         await event_emitter(
