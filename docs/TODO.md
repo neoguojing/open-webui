@@ -1,6 +1,7 @@
 # TODO
 
 ## 任务1
+- 创建agi分支，而不是借用openai的分支
 - 使用agi服务直接替换openai，要研究兼容性，参见聊天的主要入口；争议：没人会在这个平台直接使用openai，可以改动尽量避免
 - 适配语音输入和输出: 需调试
 - 适配图片: DONE
@@ -34,6 +35,37 @@
 		"code_interpreter": false,
 		"web_search": false
 	},
+	"files": [
+		{
+			"type": "file",
+			"file": {
+			"id": "370664f8-f179-473d-9a0c-b3f07fc0349f",
+			"user_id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+			"hash": "3e11c6cbdad114f4807614b25e6e94a83378905f091130c277c68178e0e327df",
+			"filename": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+			"data": {
+				"content": "电子发票(普通发票) 发票号码:\n开票日期:\n购\n买\n方\n信\n息统一社会信用代码 /纳税人识别号:销\n售\n方\n信\n息统一社会信用代码 /纳税人识别号:名称: 名称:\n项目名称 规格型号 单 位数 量单 价金 额税率/征收率 税 额\n合计\n价税合计(大写) (小写)\n备\n注\n开票人:24312000000280517071\n2024年09月12日\n上海商汤科技开发有限公司\n91310115MA1HB3LY4M上海椒客多餐饮服务有限公司\n91310105MACBK27P2A\n¥353.47 ¥3.53\n叁佰伍拾柒圆整 ¥357.00\n李小育\n李小育*餐饮服务 *餐饮服务 1% 353.47 3.53 353.47 1"
+			},
+			"meta": {
+				"name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+				"content_type": "application/pdf",
+				"size": 83703,
+				"data": {},
+				"collection_name": "file-370664f8-f179-473d-9a0c-b3f07fc0349f"
+			},
+			"created_at": 1741852282,
+			"updated_at": 1741852282
+			},
+			"id": "370664f8-f179-473d-9a0c-b3f07fc0349f",
+			"url": "http://10.8.10.82:8090/api/v1/files/370664f8-f179-473d-9a0c-b3f07fc0349f",
+			"name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+			"collection_name": "file-370664f8-f179-473d-9a0c-b3f07fc0349f",
+			"status": "uploaded",
+			"size": 83703,
+			"error": "",
+			"itemId": "07534a1a-a86a-4213-a451-25fc6064524c"
+		}
+	],
 	"variables": {
 		"{{USER_NAME}}": "neo",
 		"{{USER_LOCATION}}": "Unknown",
@@ -55,6 +87,68 @@
 			"object": "model",
 			"created": 1677654321,
 			"owned_by": "neo"
+		},
+		"info": {
+			"id": "rag",
+			"user_id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+			"base_model_id": "gemma3:27b",
+			"name": "rag",
+			"params": {},
+			"meta": {
+				"profile_image_url": "/static/favicon.png",
+				"description": null,
+				"capabilities": {
+					"vision": true,
+					"citations": true
+				},
+				"suggestion_prompts": null,
+				"tags": [],
+				"knowledge": [{
+					"id": "3242bbd4-4a09-47d0-a704-dcbd5d665774",
+					"user_id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+					"name": "test",
+					"description": "个人文档",
+					"data": {
+						"file_ids": ["eb495463-9977-45d6-abd5-50a6365cacac"]
+					},
+					"meta": null,
+					"access_control": null,
+					"created_at": 1741763827,
+					"updated_at": 1741775216,
+					"user": {
+						"id": "50e5febb-e4d7-4caa-9965-751160245ab6",
+						"name": "neo",
+						"email": "guojing_neo@163.com",
+						"role": "admin"
+					},
+					"files": [{
+						"id": "eb495463-9977-45d6-abd5-50a6365cacac",
+						"meta": {
+							"name": "上海椒客多餐饮服务有限公司_发票金额357.00元.pdf",
+							"content_type": "application/pdf",
+							"size": 83703,
+							"data": {},
+							"collection_name": "3242bbd4-4a09-47d0-a704-dcbd5d665774"
+						},
+						"created_at": 1741775216,
+						"updated_at": 1741775216
+					}],
+					"type": "collection"
+				}]
+			},
+			"access_control": {
+				"read": {
+					"group_ids": [],
+					"user_ids": []
+				},
+				"write": {
+					"group_ids": [],
+					"user_ids": []
+				}
+			},
+			"is_active": true,
+			"updated_at": 1741851344,
+			"created_at": 1741851344
 		},
 		"urlIdx": 0,
 		"actions": []
