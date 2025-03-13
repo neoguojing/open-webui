@@ -1036,9 +1036,12 @@ async def chat_completion(
         request.state.metadata = metadata
         form_data["metadata"] = metadata
 
-        form_data, metadata, events = await process_chat_payload(
-            request, form_data, metadata, user, model
-        )
+        # AGI
+        events = []
+        if model.get("owned_by") != "agi":
+            form_data, metadata, events = await process_chat_payload(
+                request, form_data, metadata, user, model
+            )
 
     except Exception as e:
         log.debug(f"Error processing chat payload: {e}")

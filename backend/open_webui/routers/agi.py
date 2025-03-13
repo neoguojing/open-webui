@@ -117,8 +117,8 @@ async def generate_chat_completion(
                     yield "data: [DONE]\n\n"
                 else:
                     # 非流模式：直接返回完整响应（转换为 JSON 字符串）
-                    # yield json.dumps(response, ensure_ascii=False)
-                    yield response
+                    print("------------",type(response))
+                    yield json.dumps(response, ensure_ascii=False)
 
                 
 
@@ -132,18 +132,16 @@ async def generate_chat_completion(
             media_type="text/event-stream",  # Server-Sent Events (SSE)
         )
     else:
-        # 对于非流模式，直接返回 JSONResponse
+        # 对于非流模式
         # 取生成器的第一个输出
         result = next(generate())
-        # 将 JSON 字符串转换为 Python 对象返回
-        # return JSONResponse(content=json.loads(result))
         return result
 
 # 处理agi返回的消息，以适配openwebui
 # 返回text，则直接填充content
 # 返回图片和语音等，则填充files
 # content 改为markdown的模式，期望能更加方便的支持图片和音频展示
-async def handle_agi_response(ret_content):
+async def handle_agi_response(ret_content,event_emitter):
     files = []
     content = ""
     citations = []
@@ -165,4 +163,14 @@ async def handle_agi_response(ret_content):
             audio_text = ret_content.get("text","")
             files.append({"type": "audio","url": audio_content})
             content = f'<audio controls><source src="{audio_content}" type="audio/mpeg">{audio_text}</audio>'
-    return content,files,citations
+    
+    # 发送sources的事件
+    if citations and len(citations) > 0 and event_emitter:
+        await event_emitter(
+            {
+                "type": "chat:completion",
+                "data": {"sources": citations},
+            }
+        )
+
+    return content

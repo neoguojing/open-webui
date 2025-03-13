@@ -1005,7 +1005,7 @@ async def process_chat_response(
             if response.get("choices", [])[0].get("message", {}).get("content"):
                 content = response["choices"][0]["message"]["content"]
                 # 新增的适配agi的代码
-                content,files,citations = await handle_agi_response(content)
+                content = await handle_agi_response(content,event_emitter)
                 if content:
                     
                     await event_emitter(
@@ -1024,7 +1024,6 @@ async def process_chat_response(
                                 "done": True,
                                 "content": content,
                                 "title": title,
-                                "files": files,
                             },
                         }
                     )
@@ -1036,7 +1035,6 @@ async def process_chat_response(
                         metadata["message_id"],
                         {
                             "content": content,
-                            "files": files,
                         },
                     )
 
@@ -1120,7 +1118,7 @@ async def process_chat_response(
 
         # Handle as a background task
         async def post_response_handler(response, events):
-            # TODO 需要处理图片和语音信息
+
             def serialize_content_blocks(content_blocks, raw=False):
                 content = ""
 
@@ -1427,19 +1425,12 @@ async def process_chat_response(
                 if message
                 else last_assistant_message if last_assistant_message else ""
             )
-            
-            files = (
-                message.get("files", [])
-                if message
-                else last_assistant_message if last_assistant_message else ""
-            )
 
             # TODO 此处只有text的消息无法满足图片和语音
             content_blocks = [
                 {
                     "type": "text",
                     "content": content,
-                    # "files": files,
                 }
             ]
 
@@ -1594,15 +1585,7 @@ async def process_chat_response(
                                     # 数据内容
                                     value = delta.get("content")
                                     # 新增的适配agi的代码
-                                    value,files,citations = await handle_agi_response(value)
-                                    # 发送sources的事件
-                                    if citations and len(citations) > 0:
-                                        await event_emitter(
-                                            {
-                                                "type": "chat:completion",
-                                                "data": {"sources": citations},
-                                            }
-                                        )
+                                    value = await handle_agi_response(value,event_emitter)
                                     # 执行内容拼接
                                     # if value or files:
                                     if value:
@@ -2016,7 +1999,6 @@ async def process_chat_response(
                     "done": True,
                     "content": serialize_content_blocks(content_blocks),
                     "title": title,
-                    # "files": files,
                 }
 
                 if not ENABLE_REALTIME_CHAT_SAVE:
