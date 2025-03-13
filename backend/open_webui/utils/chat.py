@@ -27,6 +27,10 @@ from open_webui.routers.openai import (
     generate_chat_completion as generate_openai_chat_completion,
 )
 
+from open_webui.routers.agi import (
+    generate_chat_completion as generate_agi_chat_completion,
+)
+
 from open_webui.routers.ollama import (
     generate_chat_completion as generate_ollama_chat_completion,
 )
@@ -271,6 +275,13 @@ async def generate_chat_completion(
                 )
             else:
                 return convert_response_ollama_to_openai(response)
+        elif model.get("owned_by") == "agi":
+            # agi的独立处理流程
+            return await generate_agi_chat_completion(
+                request=request,
+                form_data=form_data,
+                user=user,
+            )
         else:
             # 调用openai的接口
             # 返回的是一个StreamingResponse 对象
