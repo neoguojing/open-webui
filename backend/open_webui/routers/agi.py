@@ -4,7 +4,15 @@ from fastapi import Depends, FastAPI, HTTPException, Request, APIRouter
 from fastapi.responses import FileResponse, StreamingResponse,JSONResponse
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from typing import Optional
+from open_webui.models.users import UserModel
+from open_webui.env import ENV, SRC_LOG_LEVELS
+from aiocache import cached
+import time
 import json
+import logging
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 router = APIRouter()
 
 client = OpenAI(
@@ -113,12 +121,13 @@ async def generate_chat_completion(
 
                 if stream:
                     for event in response:
-                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                        yield f"data: {event.to_json()}\n\n"
                     yield "data: [DONE]\n\n"
                 else:
                     # 非流模式：直接返回完整响应（转换为 JSON 字符串）
                     print("------------",type(response))
-                    yield json.dumps(response, ensure_ascii=False)
+                    
+                    yield response.to_json()
 
                 
 
@@ -174,3 +183,31 @@ async def handle_agi_response(ret_content,event_emitter):
         )
 
     return content
+
+
+@cached(ttl=3)
+async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
+    log.info("get_all_models()")
+
+    response = client.models.list()
+
+    def extract_data(response):
+        if response and "data" in response:
+            return response["data"]
+        if isinstance(response, list):
+            return response
+        return None
+    models = []
+    
+    for model in response.data:
+        models.append({
+            "id": model.id,
+            "name": model.id,
+            "object": model.object,
+            "created": int(time.time()),
+            "owned_by": model.owned_by,
+            "agi": model,
+        })
+        
+    log.debug(f"models: {models}")
+    return models 
