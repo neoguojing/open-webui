@@ -92,6 +92,11 @@ from open_webui.models.users import UserModel, Users
 
 from open_webui.config import (
     LICENSE_KEY,
+    # AGI
+    ENABLE_AGI_API,
+    AGI_API_CONFIGS,
+    AGI_API_KEY,
+    AGI_BASE_URL,
     # Ollama
     ENABLE_OLLAMA_API,
     OLLAMA_BASE_URLS,
@@ -421,6 +426,17 @@ app.state.config = AppConfig()
 app.state.WEBUI_NAME = WEBUI_NAME
 app.state.config.LICENSE_KEY = LICENSE_KEY
 
+########################################
+#
+# AGI
+#
+########################################
+
+
+app.state.config.ENABLE_AGI_API = ENABLE_AGI_API
+app.state.config.AGI_BASE_URL = AGI_BASE_URL
+app.state.config.AGI_API_CONFIGS = AGI_API_CONFIGS
+app.state.config.AGI_API_KEY = AGI_API_KEY
 ########################################
 #
 # OLLAMA

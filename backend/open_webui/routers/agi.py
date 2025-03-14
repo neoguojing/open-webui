@@ -6,6 +6,7 @@ from open_webui.utils.auth import get_admin_user, get_verified_user
 from typing import Optional
 from open_webui.models.users import UserModel
 from open_webui.env import ENV, SRC_LOG_LEVELS
+from open_webui.config import AGI_API_KEY,AGI_BASE_URL
 from aiocache import cached
 import time
 import json
@@ -16,8 +17,8 @@ log.setLevel(logging.DEBUG)
 router = APIRouter()
 
 client = OpenAI(
-    api_key="123", # This is the default and can be omitted
-    base_url="http://localhost:8000/v1",
+    api_key=AGI_API_KEY, # This is the default and can be omitted
+    base_url=AGI_BASE_URL,
 )
 @contextmanager
 def handle_openai_errors():

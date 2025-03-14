@@ -724,6 +724,19 @@ ENABLE_DIRECT_CONNECTIONS = PersistentConfig(
 AGI_BASE_URL = os.environ.get(
     "AGI_BASE_URL", "http://localhost:8000/v1"
 )
+AGI_API_KEY = os.environ.get("AGI_API_KEY", "")
+
+ENABLE_AGI_API = PersistentConfig(
+    "ENABLE_AGI_API",
+    "agi.enable",
+    os.environ.get("ENABLE_AGI_API", "True").lower() == "true",
+)
+
+AGI_API_CONFIGS = PersistentConfig(
+    "AGI_API_CONFIGS",
+    "agi.api_configs",
+    {},
+)
 ####################################
 # OLLAMA_BASE_URL
 ####################################

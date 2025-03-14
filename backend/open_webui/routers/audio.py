@@ -471,8 +471,33 @@ def transcribe(request: Request, file_path):
     filename = os.path.basename(file_path)
     file_dir = os.path.dirname(file_path)
     id = filename.split(".")[0]
-
-    if request.app.state.config.STT_ENGINE == "":
+    # agi
+    if request.app.state.config.ENABLE_AGI_API:
+        from openai import OpenAI
+        import base64
+        
+        def audio_to_base64(audio_path):
+            with open(audio_path, "rb") as audio_file:
+                encoded_audio = base64.b64encode(audio_file.read()).decode('utf-8')
+            return encoded_audio
+        
+        client = OpenAI(
+            api_key=request.app.state.config.AGI_API_KEY, # This is the default and can be omitted
+            base_url=request.app.state.config.AGI_BASE_URL,
+        )
+        response = client.chat.completions.create(
+            model="agi-model",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"type": "audio", "audio": audio_to_base64(file_path)}]
+                }
+            ],
+        )
+        data = {"text": response.choices[0].message.content.strip()}
+        return data
+    
+    elif request.app.state.config.STT_ENGINE == "":
         if request.app.state.faster_whisper_model is None:
             request.app.state.faster_whisper_model = set_faster_whisper_model(
                 request.app.state.config.WHISPER_MODEL
