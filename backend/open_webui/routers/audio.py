@@ -474,28 +474,20 @@ def transcribe(request: Request, file_path):
     # agi
     if request.app.state.config.ENABLE_AGI_API:
         from openai import OpenAI
-        import base64
-        
-        def audio_to_base64(audio_path):
-            with open(audio_path, "rb") as audio_file:
-                encoded_audio = base64.b64encode(audio_file.read()).decode('utf-8')
-            return encoded_audio
         
         client = OpenAI(
             api_key=request.app.state.config.AGI_API_KEY, # This is the default and can be omitted
             base_url=request.app.state.config.AGI_BASE_URL,
         )
-        response = client.chat.completions.create(
-            model="agi-model",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "audio", "audio": audio_to_base64(file_path)}]
-                }
-            ],
-        )
-        data = {"text": response.choices[0].message.content.strip()}
-        return data
+        with open(file_path, 'rb') as audio_file:
+            response = client.audio.transcriptions.create(
+                file=audio_file,
+                model='whisper-1',
+                response_format='json',  # 可选：'text', 'srt', 'vtt', 'verbose_json'
+                language='zh'  # 可选：指定音频语言，例如 'en'、'zh' 等
+            )
+            data = {"text": response.choices[0].message.content.strip()}
+            return data
     
     elif request.app.state.config.STT_ENGINE == "":
         if request.app.state.faster_whisper_model is None:
