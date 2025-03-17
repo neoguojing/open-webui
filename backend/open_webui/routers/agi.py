@@ -1,12 +1,13 @@
 from openai import OpenAI
 from contextlib import contextmanager
-from fastapi import Depends, FastAPI, HTTPException, Request, APIRouter
+from fastapi import Depends, FastAPI, HTTPException, Request, APIRouter,UploadFile
 from fastapi.responses import FileResponse, StreamingResponse,JSONResponse
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from typing import Optional
 from open_webui.models.users import UserModel
 from open_webui.env import ENV, SRC_LOG_LEVELS
 from open_webui.config import AGI_API_KEY,AGI_BASE_URL
+import requests
 from aiocache import cached
 import time
 import json
@@ -212,3 +213,28 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
         
     log.debug(f"models: {models}")
     return models 
+
+async def upload_files(file: UploadFile,user_id: str, collection: str = None):
+    url = f"{AGI_BASE_URL}/v1/files"
+
+    # 确保从文件开头读取
+    file.file.seek(0)
+
+    files = {"file": (file.filename, file.file, file.content_type)}
+    data = {
+        "collection_name": collection,
+        "user_id": user_id
+    }
+
+    try:
+        response = requests.post(url, files=files, data=data, timeout=10)
+        response.raise_for_status()  # 如果状态码不是 2xx，将引发异常
+        return response.json()
+    except requests.exceptions.Timeout:
+        return {"error": "Request timed out"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Failed to connect to the server"}
+    except requests.exceptions.HTTPError as http_err:
+        return {"error": f"HTTP error occurred: {http_err}"}
+    except Exception as e:
+        return {"error": f"An unexpected error occurred: {e}"}

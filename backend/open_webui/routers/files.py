@@ -20,7 +20,7 @@ from open_webui.routers.audio import transcribe
 from open_webui.storage.provider import Storage
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from pydantic import BaseModel
-
+from open_webui.routers.agi import upload_files
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
@@ -83,6 +83,8 @@ def upload_file(
                 )
             else:
                 process_file(request, ProcessFileForm(file_id=id), user=user)
+                # AGI 上传文件到知识库,指定用户id，将文件插入该用户的知识库
+                upload_files(file,user_id=user.id)
 
             file_item = Files.get_file_by_id(id=id)
         except Exception as e:
