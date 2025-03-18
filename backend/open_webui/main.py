@@ -434,9 +434,7 @@ app.state.config.LICENSE_KEY = LICENSE_KEY
 
 
 app.state.config.ENABLE_AGI_API = ENABLE_AGI_API
-app.state.config.AGI_BASE_URL = AGI_BASE_URL
 app.state.config.AGI_API_CONFIGS = AGI_API_CONFIGS
-app.state.config.AGI_API_KEY = AGI_API_KEY
 ########################################
 #
 # OLLAMA

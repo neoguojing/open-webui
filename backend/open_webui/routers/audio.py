@@ -33,6 +33,8 @@ from open_webui.config import (
     WHISPER_MODEL_AUTO_UPDATE,
     WHISPER_MODEL_DIR,
     CACHE_DIR,
+    AGI_BASE_URL,
+    AGI_API_KEY
 )
 
 from open_webui.constants import ERROR_MESSAGES
@@ -476,8 +478,8 @@ def transcribe(request: Request, file_path):
         from openai import OpenAI
         
         client = OpenAI(
-            api_key=request.app.state.config.AGI_API_KEY, # This is the default and can be omitted
-            base_url=request.app.state.config.AGI_BASE_URL,
+            api_key=AGI_API_KEY, # This is the default and can be omitted
+            base_url=AGI_BASE_URL,
         )
         with open(file_path, 'rb') as audio_file:
             response = client.audio.transcriptions.create(
