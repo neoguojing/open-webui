@@ -488,7 +488,8 @@ def transcribe(request: Request, file_path):
                 response_format='json',  # 可选：'text', 'srt', 'vtt', 'verbose_json'
                 language='zh'  # 可选：指定音频语言，例如 'en'、'zh' 等
             )
-            data = {"text": response.choices[0].message.content.strip()}
+            log.info(response)
+            data = {"text": response.text.strip()}
             return data
     
     elif request.app.state.config.STT_ENGINE == "":

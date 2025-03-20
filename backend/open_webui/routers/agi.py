@@ -14,7 +14,7 @@ import json
 import logging
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 router = APIRouter()
 
 client = OpenAI(
@@ -82,15 +82,16 @@ async def generate_chat_completion(
                     ret.append(f.get("id"))
 
         return list(set(ret))
-    db_ids = merge_rag_info(files,model_knowledge)
-
+    # agi的知识库和openwebui隔离，相互不影响
+    # db_ids = merge_rag_info(files,model_knowledge)
+    db_ids = []
     # 处理请求特性，适配agi
     features = data.get("features", {})
     feature = "agent"
-    if db_ids and len(db_ids) > 0:
-        feature = "rag"
-    elif features.get("web_search",False):
+    if features.get("web_search",False):
         feature = "web"
+    # elif db_ids and len(db_ids) > 0:
+    #     feature = "rag"
     elif features.get("code_interpreter",False):
         pass
     elif features.get("image_generation",False):
@@ -214,13 +215,13 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
     log.debug(f"models: {models}")
     return models 
 
-async def upload_files(file: UploadFile,user_id: str, collection: str = None):
-    url = f"{AGI_BASE_URL}/v1/files"
+def upload_files(file_path: str,user_id: str, collection: str = None):
+    from pathlib import Path
+    url = f"{AGI_BASE_URL}/files"
 
-    # 确保从文件开头读取
-    file.file.seek(0)
-
-    files = {"file": (file.filename, file.file, file.content_type)}
+    files = {
+        'file': (Path(file_path).name, open(file_path, 'rb'), 'application/octet-stream')
+    }
     data = {
         "collection_name": collection,
         "user_id": user_id
