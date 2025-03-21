@@ -14,7 +14,7 @@ import json
 import logging
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 router = APIRouter()
 
 client = OpenAI(
@@ -107,7 +107,7 @@ async def generate_chat_completion(
                     user=user.id,
                     messages=convert_openai_message_to_agi_message(messages),
                 )
-
+                log.debug(f"agi resuqest: {messages}")
                 if stream:
                     for event in response:
                         yield f"data: {event.to_json()}\n\n"
@@ -118,11 +118,9 @@ async def generate_chat_completion(
                     
                     yield response.to_json()
 
-                
-
-        except HTTPException as e:
+        except Exception as e:
             # 如果在流式过程中发生错误，返回错误信息
-            yield f"data: {{\"error\": \"{e.detail}\"}}\n\n"
+            yield f"data: {{\"error\": \"{e}\"}}\n\n"
     
     if stream:
         return StreamingResponse(
