@@ -26,20 +26,6 @@ def handle_openai_errors():
     """捕获并处理 OpenAI 的常见异常"""
     try:
         yield  # 在实际调用中包裹 API 调用
-    except client.error.AuthenticationError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-    except client.error.RateLimitError as e:
-        raise HTTPException(
-            status_code=429,
-            detail=f"请求过多，请稍后再试。{str(e)}",
-        )
-    except client.error.APIConnectionError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except client.error.APIError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"OpenAI API 内部错误：{str(e)}",
-        )
     except Exception as e:
         # 捕获其他未知异常
         raise HTTPException(status_code=500, detail=str(e))
