@@ -29,13 +29,17 @@ def handle_openai_errors():
     except Exception as e:
         # 捕获其他未知异常
         raise HTTPException(status_code=500, detail=str(e))
-    
-@router.post("/chat/completions")
-async def generate_chat_completion(
-    request: Request,
-    form_data: dict,
-    user=Depends(get_verified_user),
-):
+
+# 准备任务请求
+async def prepare_task_params(form_data: dict):
+    return {
+        "model":form_data.get("model"),
+        "stream":form_data.get("stream"),
+        "messages":form_data.get("messages"),
+    }
+
+# 准备业务请求
+async def prepare_parmas(request,user):
     # 解析 JSON 请求体
     try:
         data = await request.json()
@@ -83,8 +87,6 @@ async def generate_chat_completion(
     elif features.get("image_generation",False):
         pass
 
-   
-
     # 只处理最后一个消息，历史消息由agi自行处理，降低开销
     def convert_openai_message_to_agi_message(messages):
         message = messages[-1]
@@ -96,18 +98,41 @@ async def generate_chat_completion(
                     item.pop("image_url",None)
         return [message]
     
-    def generate():
+    log.debug(f"agi resuqest: {messages}")
+    return {
+        "model":model,
+        "stream":stream,
+        "extra_body":{"db_ids":db_ids,"need_speech": False,"feature": feature,"conversation_id":chat_id},
+        "user":user.id,
+        "messages":convert_openai_message_to_agi_message(messages),
+    }
+
+@router.post("/chat/completions")
+async def generate_chat_completion(
+    request: Request,
+    form_data: dict,
+    user=Depends(get_verified_user),
+):
+    param = None
+    if form_data.get("metadata") and form_data.get("metadata").get("task",None):
+        param = await prepare_task_params(form_data)
+    else:
+        param = await prepare_parmas(request,user)
+        
+    stream = param.get("stream")
+    
+    def generate(param:dict):
         try:
             with handle_openai_errors():  # 处理异常
                 # 调用 OpenAI 的流式 API（stream=True）
                 response = client.chat.completions.create(
-                    model=model,
-                    stream=stream,
-                    extra_body={"db_ids":db_ids,"need_speech": False,"feature": feature,"conversation_id":chat_id},
-                    user=user.id,
-                    messages=convert_openai_message_to_agi_message(messages),
+                    model=param.get("model"),
+                    stream=param.get("stream"),
+                    extra_body=param.get("extra_body"),
+                    user=param.get("user"),
+                    messages=param.get("messages"),
                 )
-                log.debug(f"agi resuqest: {messages}")
+                
                 if stream:
                     for event in response:
                         yield f"data: {event.to_json()}\n\n"
@@ -124,13 +149,13 @@ async def generate_chat_completion(
     
     if stream:
         return StreamingResponse(
-            generate(),
+            generate(param),
             media_type="text/event-stream",  # Server-Sent Events (SSE)
         )
     else:
         # 对于非流模式
         # 取生成器的第一个输出
-        result = next(generate())
+        result = next(generate(param))
         return result
 
 # 处理agi返回的消息，以适配openwebui
