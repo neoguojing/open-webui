@@ -84,7 +84,7 @@ def upload_file(
             else:
                 process_file(request, ProcessFileForm(file_id=id), user=user)
                 # AGI 上传文件到知识库,指定用户id，将文件插入该用户的知识库
-                upload_files(file_path,user_id=user.id)
+                upload_files(file_path,file_id=id,user_id=user.id)
 
             file_item = Files.get_file_by_id(id=id)
         except Exception as e:

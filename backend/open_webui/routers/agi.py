@@ -56,20 +56,20 @@ async def generate_chat_completion(
     files = data.get("files",[])
     
     # 处理知识库相关
+    # 上传文件的知识库优先级比较高
     def merge_rag_info(files,model_knowledge):
         ret = []
         for f in files:
             if f.get("type") == "file":
                 ret.append(f.get("collection_name"))
-        
-        if model_knowledge:
+        # 没有文件知识库的情况下才启用自带知识库
+        if len(ret) == 0 and model_knowledge:
             for k in model_knowledge:
                 if k.get("type") == "collection":
                     ret.append(f.get("id"))
 
         return list(set(ret))
     # agi的知识库和openwebui隔离，相互不影响
-    # db_ids 仅作为是否进行知识库检索的条件，不直接使用
     db_ids = merge_rag_info(files,model_knowledge)
     # 处理请求特性，适配agi
     features = data.get("features", {})
@@ -103,7 +103,7 @@ async def generate_chat_completion(
                 response = client.chat.completions.create(
                     model=model,
                     stream=stream,
-                    extra_body={"need_speech": False,"feature": feature,"conversation_id":chat_id},
+                    extra_body={"db_ids":db_ids,"need_speech": False,"feature": feature,"conversation_id":chat_id},
                     user=user.id,
                     messages=convert_openai_message_to_agi_message(messages),
                 )
@@ -199,10 +199,13 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
     log.debug(f"models: {models}")
     return models 
 
-def upload_files(file_path: str,user_id: str, collection: str = None):
+# file文件需要单独存储到一个collection，以确保检索结果的准确
+def upload_files(file_path: str,file_id: str,user_id: str, collection: str = None):
     from pathlib import Path
     url = f"{AGI_BASE_URL}/files"
 
+    if collection is None:
+        collection = f"file-{file_id}"
     files = {
         'file': (Path(file_path).name, open(file_path, 'rb'), 'application/octet-stream')
     }
