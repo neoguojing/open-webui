@@ -69,15 +69,15 @@ async def generate_chat_completion(
 
         return list(set(ret))
     # agi的知识库和openwebui隔离，相互不影响
-    # db_ids = merge_rag_info(files,model_knowledge)
-    db_ids = []
+    # db_ids 仅作为是否进行知识库检索的条件，不直接使用
+    db_ids = merge_rag_info(files,model_knowledge)
     # 处理请求特性，适配agi
     features = data.get("features", {})
     feature = "agent"
     if features.get("web_search",False):
         feature = "web"
-    # elif db_ids and len(db_ids) > 0:
-    #     feature = "rag"
+    elif db_ids and len(db_ids) > 0:
+        feature = "rag"
     elif features.get("code_interpreter",False):
         pass
     elif features.get("image_generation",False):
@@ -103,7 +103,7 @@ async def generate_chat_completion(
                 response = client.chat.completions.create(
                     model=model,
                     stream=stream,
-                    extra_body={"db_ids":db_ids,"need_speech": False,"feature": feature,"conversation_id":chat_id},
+                    extra_body={"need_speech": False,"feature": feature,"conversation_id":chat_id},
                     user=user.id,
                     messages=convert_openai_message_to_agi_message(messages),
                 )
