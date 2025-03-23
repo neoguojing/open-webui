@@ -32,10 +32,13 @@ def handle_openai_errors():
 
 # 准备任务请求
 async def prepare_task_params(form_data: dict):
+    model = form_data.get("model")
+    stream = form_data.get("stream")
+    messages = form_data.get("messages")
     return {
-        "model":form_data.get("model"),
-        "stream":form_data.get("stream"),
-        "messages":form_data.get("messages"),
+        "model":model,
+        "stream":stream,
+        "messages":messages,
     }
 
 # 准备业务请求
@@ -124,13 +127,18 @@ async def generate_chat_completion(
     def generate(param:dict):
         try:
             with handle_openai_errors():  # 处理异常
+                model=param.get("model","agi")
+                stream=param.get("stream",True)
+                extra_body=param.get("extra_body",None)
+                user=param.get("user","")
+                messages=param.get("messages",[])
                 # 调用 OpenAI 的流式 API（stream=True）
                 response = client.chat.completions.create(
-                    model=param.get("model"),
-                    stream=param.get("stream"),
-                    extra_body=param.get("extra_body"),
-                    user=param.get("user"),
-                    messages=param.get("messages"),
+                    model=model,
+                    stream=stream,
+                    extra_body=extra_body,
+                    user=user,
+                    messages=messages,
                 )
                 
                 if stream:
