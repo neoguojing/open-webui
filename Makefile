@@ -39,3 +39,6 @@ front:
 
 dev:
 	cd backend && sh dev.sh
+
+image:
+	docker build -t "open-webui" .
