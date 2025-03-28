@@ -73,7 +73,7 @@ async def generate_chat_completion(
     db_ids = merge_rag_info(files,model_knowledge)
     # 处理请求特性，适配agi
     features = data.get("features", {})
-    feature = "agent"
+    feature = ""
     if features.get("web_search",False):
         feature = "web"
     elif db_ids and len(db_ids) > 0:
@@ -81,9 +81,7 @@ async def generate_chat_completion(
     elif features.get("code_interpreter",False):
         pass
     elif features.get("image_generation",False):
-        pass
-
-   
+        feature = "image2image"
 
     # 只处理最后一个消息，历史消息由agi自行处理，降低开销
     def convert_openai_message_to_agi_message(messages):
