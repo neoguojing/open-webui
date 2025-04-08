@@ -147,7 +147,7 @@ async def generate_chat_completion(
                     yield "data: [DONE]\n\n"
                 else:
                     # 非流模式：直接返回完整响应（转换为 JSON 字符串）
-                    print("------------",type(response))
+                    print("------------",response)
                     
                     yield response.to_json()
 
@@ -195,6 +195,7 @@ async def handle_agi_response(ret_content,event_emitter):
     
     # 发送sources的事件
     if citations and len(citations) > 0 and event_emitter:
+        log.info("got an citations {citations}")
         await event_emitter(
             {
                 "type": "chat:completion",
