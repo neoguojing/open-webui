@@ -182,7 +182,6 @@ async def handle_agi_response(ret_content,event_emitter):
     if isinstance(ret_content,dict):
         if ret_content.get("type") == "text":
             content = ret_content.get("text","")
-            citations = ret_content.get("citations",[])
         elif ret_content.get("type") == "image":
             image_content = ret_content.get("image","")
             files.append({"type": "image","url": image_content})
@@ -192,7 +191,8 @@ async def handle_agi_response(ret_content,event_emitter):
             audio_text = ret_content.get("text","")
             files.append({"type": "audio","url": audio_content})
             content = f'<audio controls><source src="{audio_content}" type="audio/mpeg">{audio_text}</audio>'
-    
+            
+        citations = ret_content.get("citations",[])
     # 发送sources的事件
     if citations and len(citations) > 0 and event_emitter:
         log.info("got an citations {citations}")
