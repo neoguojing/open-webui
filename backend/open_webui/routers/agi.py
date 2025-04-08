@@ -68,7 +68,7 @@ async def prepare_parmas(request,user):
         ret = []
         for f in files:
             if f.get("type") == "file":
-                ret.append(f.get("collection_name"))
+                ret.append(f.get("id"))
         # 没有文件知识库的情况下才启用自带知识库
         if len(ret) == 0 and model_knowledge:
             for k in model_knowledge:
@@ -105,7 +105,7 @@ async def prepare_parmas(request,user):
     return {
         "model":model,
         "stream":stream,
-        "extra_body":{"db_ids":db_ids,"need_speech": False,"feature": feature,"conversation_id":chat_id},
+        "extra_body":{"need_speech": False,"feature": feature,"conversation_id":chat_id},
         "user":user.id,
         "messages":convert_openai_message_to_agi_message(messages),
     }
