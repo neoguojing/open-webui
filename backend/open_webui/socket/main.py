@@ -270,7 +270,7 @@ async def disconnect(sid):
 
 def get_event_emitter(request_info):
     async def __event_emitter__(event_data):
-        print("*************",event_data)
+        log.debug(f"__event_emitter__ {event_data}")
         user_id = request_info["user_id"]
         session_ids = list(
             set(USER_POOL.get(user_id, []) + [request_info["session_id"]])
