@@ -68,12 +68,12 @@ async def prepare_parmas(request,user):
         ret = []
         for f in files:
             if f.get("type") == "file":
-                ret.append(f.get("id"))
+                ret.append(f.get("collection_name",""))
         # 没有文件知识库的情况下才启用自带知识库
         if len(ret) == 0 and model_knowledge:
             for k in model_knowledge:
                 if k.get("type") == "collection":
-                    ret.append(f.get("id"))
+                    ret.append(f.get("id",""))
 
         return list(set(ret))
     # agi的知识库和openwebui隔离，相互不影响
