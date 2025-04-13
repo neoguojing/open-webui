@@ -39,6 +39,7 @@ async def prepare_task_params(form_data: dict):
         "model":model,
         "stream":stream,
         "messages":messages,
+        "extra_body":{"feature": "llm"},
     }
 
 # 准备业务请求
